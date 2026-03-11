@@ -1,0 +1,46 @@
+{
+  "$schema": "https://docs.openclaw.dev/schemas/v1/skill.schema.json",
+  "name": "ellen-companion",
+  "displayName": "Ellen Joe AI Companion (エレン・ジョー)",
+  "version": "1.0.0",
+  "description": "Ellen Joe AI 陪伴 Skill，集成 GPT-SoVITS v4 日语语音合成与 Live2D 动态表情",
+  "type": "conversation",
+  "category": "companion",
+  "author": "ChaoticArray516",
+  "runtime": {
+    "type": "nodejs",
+    "version": ">=18.0.0",
+    "entry": "packages/skill-backend/dist/index.js"
+  },
+  "permissions": [
+    "network:http",
+    "network:websocket",
+    "env:read",
+    "process:spawn"
+  ],
+  "triggers": [
+    "ellen", "エレン", "艾莲", "companion",
+    "shion", "若山诗音", "shark", "シャーク",
+    "ai girlfriend", "ai陪伴"
+  ],
+  "dependencies": {
+    "services": [
+      {
+        "name": "gpt-sovits-tts",
+        "description": "GPT-SoVITS v4 语音合成服务",
+        "url": "http://127.0.0.1:9880",
+        "required": true,
+        "startupTimeout": 30000,
+        "retryAttempts": 3
+      }
+    ]
+  },
+  "lifecycle": {
+    "onStart": "packages/skill-backend/dist/index.js",
+    "onStop": "packages/skill-backend/dist/cleanup.js"
+  },
+  "frontend": {
+    "entry": "packages/frontend/dist/index.html",
+    "port": 5173
+  }
+}

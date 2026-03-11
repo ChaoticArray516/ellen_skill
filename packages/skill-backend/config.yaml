@@ -1,0 +1,55 @@
+# Ellen Joe AI Companion Skill - Unified Configuration
+# Note: API Keys and sensitive data should be injected via environment variables
+
+project:
+  name: "ellen-ai-companion"
+  version: "1.0.0"
+  character: "Ellen Joe (エレン・ジョー)"
+  cv: "Wakayama Shion (若山詩音)"
+
+llm:
+  provider: deepseek          # openai | deepseek | claude | gemini | zhipu
+  api_key: ""                 # Override via LLM_API_KEY environment variable
+  base_url: "https://api.deepseek.com"
+  model: "deepseek-chat"
+  temperature: 0.7
+  max_tokens: 1000
+  stream: true
+
+tts:
+  api_url: "http://127.0.0.1:9880"
+  language: "ja"
+  model:
+    gpt_path: "components/v4/艾莲/艾莲-e10.ckpt"
+    sovits_path: "components/v4/艾莲/艾莲_e10_s460_l32.pth"
+    ref_audio: "components/v4/艾莲/reference_audios/日语/emotions/【默认】それで戦い方とかはいつ覚えんの？.wav"
+    ref_text: "それで戦い方とかはいつ覚えるの？"
+  params:
+    top_k: 5
+    top_p: 0.8
+    temperature: 0.75
+    speed_factor: 0.9        # 0.9 =慵懒语速，低于 1.0
+    sample_steps: 32         # V4 exclusive parameter
+    super_sampling: true     # V4 exclusive: super-sampling for better quality
+    batch_size: 1
+    streaming_mode: false
+
+websocket:
+  host: "127.0.0.1"
+  port: 8080
+  heartbeat_interval: 30     # seconds
+  max_connections: 10
+  reconnect_attempts: 5
+  reconnect_delay: 1000      # milliseconds, exponential backoff base
+
+live2d:
+  model_path: "packages/frontend/public/Shark/shark.model3.json"
+  default_motion: "idle"
+  default_expression: "lazy"
+
+persona:
+  trust_level: 100           # Fixed high trust mode
+  sugar_level: 100
+  stress_level: 0
+  allow_tail_touch: true
+  default_mode: "lazy"       # lazy | maid | predator | hangry

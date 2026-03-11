@@ -1,0 +1,56 @@
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+yarn.lock
+
+# Build outputs
+dist/
+build/
+*.tsbuildinfo
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+
+# Cache
+.cache/
+.temp/
+tmp/
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# GPT-SoVITS model files (large files)
+*.ckpt
+*.pth
+*.pkl
+*.bin
+
+# Audio files
+*.wav
+*.mp3
+*.ogg
+*.m4a
+
+# Keep example files
+!.env.example

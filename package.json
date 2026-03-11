@@ -1,0 +1,25 @@
+{
+  "name": "ellen-skill",
+  "version": "1.0.0",
+  "description": "Ellen Joe AI Companion Skill - OpenClaw integration with GPT-SoVITS v4 TTS and Live2D",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspace=packages/skill-backend",
+    "dev:backend": "npm run dev --workspace=packages/skill-backend",
+    "dev:frontend": "npm run dev --workspace=packages/frontend"
+  },
+  "keywords": [
+    "openclaw",
+    "skill",
+    "ellen-joe",
+    "live2d",
+    "gpt-sovits",
+    "tts",
+    "ai-companion"
+  ],
+  "author": "ChaoticArray516",
+  "license": "MIT"
+}
