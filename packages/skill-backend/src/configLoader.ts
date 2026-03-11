@@ -101,8 +101,9 @@ export function loadConfig(): SkillConfig {
     return configCache;
   }
 
-  // Resolve config file path based on process.cwd() (Skill root directory)
-  const configPath = path.resolve(process.cwd(), 'config.yaml');
+  // Resolve config file path relative to Skill root
+  const skillRoot = path.resolve(__dirname, '..', '..', '..');
+  const configPath = path.resolve(skillRoot, 'config.yaml');
 
   // Check if config file exists
   if (!fs.existsSync(configPath)) {
@@ -177,15 +178,16 @@ function applyEnvironmentOverrides(config: SkillConfig): void {
  * @param {SkillConfig} config - The configuration to modify
  */
 function resolveModelPaths(config: SkillConfig): void {
-  const cwd = process.cwd();
+  // Resolve paths relative to Skill root (3 levels up from dist/src/)
+  const skillRoot = path.resolve(__dirname, '..', '..', '..');
 
   // TTS model paths must be absolute for GPT-SoVITS
-  config.tts.model.gpt_path = path.resolve(cwd, config.tts.model.gpt_path);
-  config.tts.model.sovits_path = path.resolve(cwd, config.tts.model.sovits_path);
-  config.tts.model.ref_audio = path.resolve(cwd, config.tts.model.ref_audio);
+  config.tts.model.gpt_path = path.resolve(skillRoot, config.tts.model.gpt_path);
+  config.tts.model.sovits_path = path.resolve(skillRoot, config.tts.model.sovits_path);
+  config.tts.model.ref_audio = path.resolve(skillRoot, config.tts.model.ref_audio);
 
   // Live2D model path
-  config.live2d.model_path = path.resolve(cwd, config.live2d.model_path);
+  config.live2d.model_path = path.resolve(skillRoot, config.live2d.model_path);
 }
 
 /**

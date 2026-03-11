@@ -9,6 +9,11 @@
  * - Message processing pipeline
  */
 
+// Load environment variables from .env file (project root)
+import * as dotenv from 'dotenv';
+import * as path from 'path';
+dotenv.config({ path: path.resolve(__dirname, '..', '..', '..', '.env') });
+
 import { loadConfig, SkillConfig } from './configLoader';
 import { synthesizeSpeech, switchToEllenModel } from './voiceBridge';
 import { EllenWSServer } from './wsServer';
