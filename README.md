@@ -4,6 +4,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue)](https://www.typescriptlang.org/)
 [![React](https://img.shields.io/badge/React-18-61DAFB)](https://react.dev/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![GitHub](https://img.shields.io/badge/GitHub-ellen__skill-black)](https://github.com/ChaoticArray516/ellen_skill)
 
 An OpenClaw Skill featuring **Ellen Joe** from Zenless Zone Zero, powered by GPT-SoVITS v4 Japanese TTS and Live2D dynamic expressions.
 
@@ -25,6 +26,7 @@ An OpenClaw Skill featuring **Ellen Joe** from Zenless Zone Zero, powered by GPT
 ┌─────────────────────────────────────────────────────────────┐
 │                     User Interface                          │
 │              (React + TypeScript + Vite)                    │
+│         Live2D Canvas │ Chat │ Audio Lip-Sync              │
 └─────────────────────────────────────────────────────────────┘
                               │
                               ▼ WebSocket (ws://127.0.0.1:8080)
@@ -32,22 +34,51 @@ An OpenClaw Skill featuring **Ellen Joe** from Zenless Zone Zero, powered by GPT
 │                    Ellen Skill Backend                      │
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐ │
 │  │ Config      │  │ Voice       │  │ WebSocket           │ │
-│  │ Loader      │──│ Bridge      │──│ Server              │ │
-│  └─────────────┘  └─────────────┘  └─────────────────────┘ │
-│         │                  │                  │             │
-│         ▼                  ▼                  ▼             │
+│  │ Loader      │──│ Bridge      │──│ Server (Port 8080)  │ │
+│  │ (YAML)      │  │ (TTS API)   │  │ (Broadcast)         │ │
+│  └─────────────┘  └──────┬──────┘  └─────────────────────┘ │
+│         │                │                                  │
+│         ▼                ▼                                  │
 │  ┌─────────────────────────────────────────────────────┐   │
 │  │              OpenClaw Skill Interface               │   │
+│  │         (Claude Code / OpenClaw Integration)        │   │
 │  └─────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────┘
-                              │
-              ┌───────────────┼───────────────┐
-              ▼               ▼               ▼
-┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐
-│   LLM Provider  │  │  GPT-SoVITS v4  │  │   Live2D SDK    │
-│  (OpenAI/etc.)  │  │   TTS Service   │  │  (PIXI.js)      │
-└─────────────────┘  └─────────────────┘  └─────────────────┘
+         │                           │
+         ▼                           ▼
+┌─────────────────┐      ┌─────────────────────────────┐
+│   LLM Provider  │      │      GPT-SoVITS v4 TTS      │
+│  (DeepSeek/     │      │  ┌─────────────────────┐    │
+│   OpenAI/       │      │  │  api_v2.py (9880)   │    │
+│   Claude)       │      │  │  ┌───────────────┐  │    │
+└─────────────────┘      │  │  │  艾莲-e10.ckpt │  │    │
+                         │  │  │  (GPT Model)   │  │    │
+                         │  │  └───────────────┘  │    │
+                         │  │  ┌───────────────┐  │    │
+                         │  │  │艾莲_e10_s460   │  │    │
+                         │  │  │_l32.pth        │  │    │
+                         │  │  │(SoVITS Model) │  │    │
+                         │  │  └───────────────┘  │    │
+                         │  └─────────────────────┘    │
+                         └─────────────────────────────┘
 ```
+
+### GPT-SoVITS v4 Integration Details
+
+**V4 Features:**
+- **Output Sample Rate**: 48kHz (fixes muffled sound in V3)
+- **Pretrained Model**: `s2Gv4.pth` (different from V3)
+- **Model Components**:
+  - GPT semantic model (`.ckpt`) - Text to semantic tokens
+  - SoVITS VAE (`.pth`) - Acoustic feature generation
+  - BigVGAN vocoder - Final waveform synthesis
+
+**Why Not Genie-TTS?**
+| Feature | Genie-TTS | GPT-SoVITS v4 (Required) |
+|---------|-----------|-------------------------|
+| Supported Versions | V2, V2ProPlus | **V4** ✅ |
+| Model Format | ONNX | PyTorch (.ckpt + .pth) |
+| Ellen V4 Model | ❌ Incompatible | ✅ Fully Compatible |
 
 ## Project Structure
 
@@ -81,6 +112,36 @@ ellen_skill/
 │   ├── test_tts.py        # TTS connectivity test
 │   └── test_ws_client.js  # WebSocket client test
 └── docs/                   # Documentation
+```
+
+## 🔗 Related Repositories
+
+| Repository | Description | Link |
+|------------|-------------|------|
+| **ellen_skill** | This repository - OpenClaw Skill implementation | [GitHub](https://github.com/ChaoticArray516/ellen_skill) |
+| **Ellen-Live2D** | FastAPI backend version with PixiJS frontend | [GitHub](https://github.com/ChaoticArray516/Ellen-Live2D) |
+| **GPT-SoVITS** | Official TTS engine with V4 support | [GitHub](https://github.com/RVC-Boss/GPT-SoVITS) |
+
+## 🗂️ Model Files (Download Required)
+
+The following files are **NOT included** in this repository due to size limits (excluded via `.gitignore`):
+
+| File | Size | Location | Description |
+|------|------|----------|-------------|
+| `艾莲-e10.ckpt` | ~155MB | `components/v4/艾莲/` | GPT model checkpoint |
+| `艾莲_e10_s460_l32.pth` | ~75MB | `components/v4/艾莲/` | SoVITS model weights |
+| Reference Audio | ~280KB | `components/v4/艾莲/reference_audios/日语/emotions/` | Emotion reference WAV |
+
+### Setup Model Files
+
+```bash
+# Create model directory
+mkdir -p components/v4/艾莲/reference_audios/日语/emotions
+
+# Copy your trained model files here
+cp /path/to/your/艾莲-e10.ckpt components/v4/艾莲/
+cp /path/to/your/艾莲_e10_s460_l32.pth components/v4/艾莲/
+cp /path/to/your/reference.wav components/v4/艾莲/reference_audios/日语/emotions/
 ```
 
 ## Quick Start
@@ -171,6 +232,65 @@ tts:
 websocket:
   host: "127.0.0.1"
   port: 8080
+```
+
+## 🖥️ Cross-Platform Deployment (No Docker)
+
+### Windows
+
+```powershell
+# 1. Install Python 3.11
+winget install Python.Python.3.11
+
+# 2. Create virtual environment
+python -m venv venv
+.\venv\Scripts\activate
+
+# 3. Install PyTorch (CUDA 12.4)
+pip install torch==2.5.1+cu124 --extra-index-url https://download.pytorch.org/whl/cu124
+
+# 4. Install GPT-SoVITS dependencies
+pip install -r requirements.txt
+
+# 5. Start GPT-SoVITS API server
+python api_v2.py -a 127.0.0.1 -p 9880 -c GPT_SoVITS/configs/tts_infer.yaml
+```
+
+### macOS (Apple Silicon)
+
+```bash
+# 1. Install Python 3.11
+brew install python@3.11
+
+# 2. Create virtual environment
+python3.11 -m venv venv
+source venv/bin/activate
+
+# 3. Install PyTorch (CPU/MPS for Apple Silicon)
+pip install torch==2.5.1 --extra-index-url https://download.pytorch.org/whl/cpu
+pip install -r requirements.txt
+
+# 4. Start service
+python api_v2.py -a 127.0.0.1 -p 9880
+```
+
+### Linux (Ubuntu/Debian)
+
+```bash
+# 1. Install dependencies
+sudo apt update
+sudo apt install python3.11 python3.11-venv ffmpeg
+
+# 2. Create virtual environment
+python3.11 -m venv venv
+source venv/bin/activate
+
+# 3. Install PyTorch (CUDA 12.4)
+pip install torch==2.5.1+cu124 --extra-index-url https://download.pytorch.org/whl/cu124
+pip install -r requirements.txt
+
+# 4. Start service
+python api_v2.py -a 127.0.0.1 -p 9880
 ```
 
 ## Ellen's Character
@@ -268,12 +388,63 @@ const result = await synthesizeSpeech(rawText, config);
 
 ## Troubleshooting
 
+### Common Issues
+
 | Issue | Solution |
 |-------|----------|
 | TTS service not found | Ensure GPT-SoVITS is running on port 9880 |
 | WebSocket connection failed | Check if backend is running on port 8080 |
 | Audio not playing | Verify `AudioContext` is initialized on user interaction |
 | Model files not found | Check paths in `config.yaml` are absolute |
+| CUDA out of memory | Reduce `batch_size` or use CPU mode |
+| Japanese text not synthesizing | Ensure text contains valid Japanese characters |
+
+### GPT-SoVITS V4 Integration
+
+**Model Loading:**
+```python
+# Switch to Ellen V4 model
+import requests
+
+# Load GPT model
+requests.get("http://127.0.0.1:9880/set_gpt_weights", params={
+    "weights_path": "/absolute/path/to/艾莲-e10.ckpt"
+})
+
+# Load SoVITS model
+requests.get("http://127.0.0.1:9880/set_sovits_weights", params={
+    "weights_path": "/absolute/path/to/艾莲_e10_s460_l32.pth"
+})
+```
+
+**Optimal TTS Parameters for Ellen:**
+```json
+{
+  "text": "おはよう、ご主人様",
+  "text_lang": "ja",
+  "ref_audio_path": "/path/to/reference.wav",
+  "prompt_text": "それで戦い方とかはいつ覚えるの？",
+  "prompt_lang": "ja",
+  "top_k": 5,
+  "top_p": 0.8,
+  "temperature": 0.75,
+  "speed_factor": 0.9,
+  "sample_steps": 32
+}
+```
+
+### Cross-Platform Path Handling
+
+```typescript
+// Use path.join for cross-platform compatibility
+import path from 'path';
+
+// ✅ Correct
+const modelPath = path.join(process.cwd(), 'components', 'v4', '艾莲');
+
+// ❌ Incorrect (Windows-only)
+const modelPath = `${baseDir}/components/v4/艾莲`;
+```
 
 ## License
 
