@@ -21,14 +21,16 @@ import { EllenPersona } from './persona';
 import OpenAI from 'openai';
 import { Logger, LogLevel } from './logger';
 import { MultimodalSyncPacket } from './types';
+import { getUserOperationLogger } from './userOperationLogger';
 
 // Global instances
 let config: SkillConfig;
 let wsServer: EllenWSServer;
 let llmClient: OpenAI;
 
-// Logger instance
+// Logger instances
 const logger = new Logger('EllenSkill', { level: LogLevel.INFO });
+const userLogger = getUserOperationLogger({ consoleOutput: true });
 
 /**
  * Main startup sequence
@@ -57,6 +59,10 @@ async function main(): Promise<void> {
       host: config.websocket.host,
       port: config.websocket.port,
     });
+
+    // Step 2.5: Register message handler (must be registered immediately after WS server starts)
+    wsServer.setMessageHandler(handleMessage);
+    logger.info('Message handler registered with WebSocket server');
 
     // Step 3: Switch TTS model to Ellen V4
     const modelSwitched = await switchToEllenModel(
@@ -125,11 +131,22 @@ async function handleMessage(userMessage: string): Promise<void> {
 
     logger.info('LLM response received', { preview: fullResponse.slice(0, 100) });
 
+    // Log LLM response
+    const detectedEmotion = extractEmotionFromResponse(fullResponse);
+    userLogger.logLLMResponse(userMessage, fullResponse, detectedEmotion);
+
     // 4. Broadcast "speaking" status
     wsServer.sendStatus('speaking');
 
     // 5. Call TTS synthesis (returns null on failure for graceful degradation)
     const ttsResult = await synthesizeSpeech(fullResponse, config);
+
+    // Log TTS result
+    if (ttsResult) {
+      userLogger.logTTSSynthesis(ttsResult.text, ttsResult.duration, true);
+    } else {
+      userLogger.logTTSSynthesis(fullResponse, 0, false);
+    }
 
     // 6. Assemble and broadcast multimodal sync packet
     const packet: MultimodalSyncPacket = {
@@ -161,6 +178,33 @@ async function handleMessage(userMessage: string): Promise<void> {
 }
 
 /**
+ * Extract emotion from LLM response
+ * Simple heuristic based on response content
+ */
+function extractEmotionFromResponse(response: string): string {
+  const lower = response.toLowerCase();
+  if (lower.includes('怒') || lower.includes('angry') || lower.includes('frustrated')) {
+    return 'angry';
+  }
+  if (lower.includes('羞') || lower.includes('shy') || lower.includes('blush')) {
+    return 'shy';
+  }
+  if (lower.includes('惊') || lower.includes('surprised') || lower.includes('wow')) {
+    return 'surprised';
+  }
+  if (lower.includes('♪') || lower.includes('happy') || lower.includes('开心')) {
+    return 'happy';
+  }
+  if (lower.includes('♡') || lower.includes('love') || lower.includes('maid')) {
+    return 'maid';
+  }
+  if (lower.includes('饿') || lower.includes('hungry') || lower.includes('食物')) {
+    return 'hangry';
+  }
+  return 'lazy';
+}
+
+/**
  * Graceful shutdown handler
  *
  * Closes WebSocket server and exits cleanly.
@@ -169,6 +213,9 @@ async function gracefulShutdown(): Promise<void> {
   logger.info('Shutting down gracefully...');
 
   try {
+    // Log system shutdown
+    userLogger.logSystemShutdown();
+
     if (wsServer) {
       await wsServer.close();
       logger.info('WebSocket server closed');

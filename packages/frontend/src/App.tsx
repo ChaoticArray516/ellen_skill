@@ -51,7 +51,6 @@ function App() {
     initializeAudio,
     sendMessage,
     reconnect,
-    getExpressionParams,
   } = useEllenSkill();
 
   const [inputText, setInputText] = useState('');
@@ -80,6 +79,16 @@ function App() {
   }, [inputText, sendMessage]);
 
   /**
+   * Handle model hit (click on Live2D model)
+   */
+  const handleModelHit = useCallback((hitAreas: string[]) => {
+    // Trigger special reaction when model is clicked (e.g., tail touched)
+    if (hitAreas.length > 0) {
+      sendMessage('[System: User clicked on you, please respond with shy or surprised expression]');
+    }
+  }, [sendMessage]);
+
+  /**
    * Handle key press
    */
   const handleKeyPress = useCallback(
@@ -105,7 +114,8 @@ function App() {
           <Live2DCanvas
             modelPath="/Shark/shark.model3.json"
             motionId={isSpeaking ? 'idle2' : 'idle'}
-            getExpressionParams={getExpressionParams}
+            expressionId={currentExpression}
+            onHit={handleModelHit}
             width={800}
             height={600}
           />

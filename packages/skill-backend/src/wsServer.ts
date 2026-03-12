@@ -10,6 +10,7 @@ import { SkillConfig } from './configLoader';
 import { randomUUID } from 'crypto';
 import { Logger, LogLevel } from './logger';
 import { MultimodalSyncPacket, StatusMessage } from './types';
+import { getUserOperationLogger } from './userOperationLogger';
 
 // Re-export types
 export { MultimodalSyncPacket, StatusMessage } from './types';
@@ -21,8 +22,9 @@ interface ExtendedWebSocket extends WebSocket {
   isAlive: boolean;
 }
 
-// Logger instance
+// Logger instances
 const logger = new Logger('WSServer', { level: LogLevel.INFO });
+const userLogger = getUserOperationLogger();
 
 /**
  * WebSocket server for Ellen Skill
@@ -39,6 +41,9 @@ export class EllenWSServer {
   private clients: Map<string, ExtendedWebSocket> = new Map();
   private heartbeatInterval: NodeJS.Timeout | null = null;
   private config: SkillConfig;
+
+  // Message handler: registered by index.ts to process incoming client messages
+  private messageHandler: ((message: string) => Promise<void>) | null = null;
 
   /**
    * Creates a new WebSocket server instance
@@ -93,6 +98,19 @@ export class EllenWSServer {
   }
 
   /**
+   * Register message handler
+   *
+   * Called by external (index.ts) to route user messages to LLM processing pipeline.
+   * Must be called after start() and before receiving messages.
+   *
+   * @param {Function} handler - Async function receiving user message string
+   */
+  setMessageHandler(handler: (message: string) => Promise<void>): void {
+    this.messageHandler = handler;
+    logger.info('Message handler registered');
+  }
+
+  /**
    * Handles a new WebSocket connection
    *
    * Assigns UUID, sets up event handlers, and sends ready status
@@ -108,6 +126,9 @@ export class EllenWSServer {
     this.clients.set(clientId, ws);
     logger.info('Client connected', { clientId, total: this.clients.size });
 
+    // Log client connection
+    userLogger.logClientConnect(clientId, this.clients.size);
+
     // Send ready status to new client
     this.sendToClient(ws, {
       type: 'status',
@@ -120,16 +141,39 @@ export class EllenWSServer {
       ws.isAlive = true;
     });
 
-    // Handle incoming messages (optional - for client->server communication)
+  // Handle incoming messages
     ws.on('message', (data) => {
       try {
         const message = JSON.parse(data.toString());
-        logger.debug('Received message', { clientId, message });
-        // Handle client messages if needed
+        logger.debug('Received message', { clientId, type: message.type });
+
+        // Route user messages to LLM processing pipeline
+        if (message.type === 'message' && typeof message.content === 'string') {
+          // Log user message
+          userLogger.logUserMessage(message.content, clientId);
+
+          if (this.messageHandler) {
+            // Asynchronous call, don't block WebSocket event loop
+            this.messageHandler(message.content).catch((error) => {
+              logger.error('Message handler failed', error instanceof Error ? error : new Error(String(error)));
+              // Log error
+              userLogger.logError('Message handler failed', error instanceof Error ? error : new Error(String(error)), clientId);
+              // Send error status to client
+              this.sendStatus('error', 'Message processing failed');
+              // Recover to ready state after 1 second
+              setTimeout(() => this.sendStatus('ready'), 1000);
+            });
+          } else {
+            logger.warn('Message received but no handler registered', { clientId });
+            this.sendStatus('error', 'Backend not ready');
+          }
+        } else {
+          logger.debug('Ignoring non-message packet', { type: message.type });
+        }
       } catch (error) {
         logger.warn('Invalid message from client', {
           clientId,
-          data: data.toString(),
+          data: data.toString().substring(0, 100),
         });
       }
     });
@@ -138,6 +182,8 @@ export class EllenWSServer {
     ws.on('close', () => {
       this.clients.delete(clientId);
       logger.info('Client disconnected', { clientId, total: this.clients.size });
+      // Log client disconnection
+      userLogger.logClientDisconnect(clientId, this.clients.size);
     });
 
     // Handle errors

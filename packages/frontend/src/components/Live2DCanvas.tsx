@@ -7,7 +7,30 @@
 
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { Application, Ticker } from 'pixi.js';
-import { Live2DModel } from 'pixi-live2d-display';
+import { Live2DModel } from 'pixi-live2d-display/cubism4';
+
+// Global type extensions for Live2D
+ declare global {
+   interface Window {
+     Live2DCubismCore: unknown;
+     __LIVE2D_DEBUG__: {
+       app: unknown;
+       model: unknown;
+       internalModel: unknown;
+     };
+   }
+ }
+
+ // Live2D internal model type (internal structure not fully exported by pixi-live2d-display)
+ interface Live2DInternalModel {
+   coreModel?: {
+     setParameterValueById?: (id: string, value: number) => void;
+   };
+   motionManager?: {
+     definitions?: Record<string, unknown[]>;
+     expressionManager?: unknown;
+   };
+ }
 
 /**
  * Props for Live2DCanvas component
@@ -17,13 +40,26 @@ interface Live2DCanvasProps {
   modelPath: string;
   /** Current motion ID */
   motionId?: string;
-  /** Callback to get expression parameters */
-  getExpressionParams?: () => Record<string, number> | null;
+  /** Expression ID (e.g., 'lazy', 'shy', 'angry') */
+  expressionId?: string;
+  /** Hit callback when model is clicked */
+  onHit?: (hitAreas: string[]) => void;
   /** Canvas width */
   width?: number;
   /** Canvas height */
   height?: number;
 }
+
+// Emotion ID to shark.model3.json expression name mapping
+const EMOTION_TO_EXPRESSION: Record<string, string> = {
+  lazy: 'mouth_left',
+  maid: 'holding_lollipop',
+  predator: 'angry',
+  hangry: 'angry',
+  shy: 'blush',
+  surprised: 'stunned',
+  happy: 'mouth_right',
+};
 
 /**
  * Live2D Canvas component
@@ -33,14 +69,14 @@ interface Live2DCanvasProps {
 export function Live2DCanvas({
   modelPath,
   motionId = 'idle',
-  getExpressionParams,
+  expressionId = 'lazy',
+  onHit,
   width = 800,
   height = 600,
 }: Live2DCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const appRef = useRef<Application | null>(null);
   const modelRef = useRef<Live2DModel | null>(null);
-  const animationFrameRef = useRef<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -56,7 +92,7 @@ export function Live2DCanvas({
 
       console.log('[Live2DCanvas] Checking Cubism Core...');
       // Check if Cubism Core is loaded
-      if (typeof window === 'undefined' || !(window as Record<string, unknown>).Live2DCubismCore) {
+      if (typeof window === 'undefined' || !window.Live2DCubismCore) {
         throw new Error('Live2D Cubism Core not loaded. Please check your internet connection.');
       }
 
@@ -100,8 +136,9 @@ export function Live2DCanvas({
       model.scale.set(0.2);
       model.anchor.set(0.5, 0.5);
 
-      // Start update loop for expressions
-      startUpdateLoop();
+      // Apply default expression
+      const defaultExpression = EMOTION_TO_EXPRESSION[expressionId] ?? 'mouth_left';
+      model.expression(defaultExpression);
 
       setLoading(false);
       console.log('[Live2DCanvas] Live2D initialized successfully');
@@ -111,116 +148,90 @@ export function Live2DCanvas({
         scale: model.scale?.x,
         visible: model.visible,
         alpha: model.alpha,
-        hasInternalModel: !!(model as Record<string, unknown>).internalModel,
+        hasInternalModel: !!model.internalModel,
       });
 
       // Expose for debugging
-      (window as Record<string, unknown>).__LIVE2D_DEBUG__ = {
+      window.__LIVE2D_DEBUG__ = {
         app,
         model,
-        internalModel: (model as Record<string, unknown>).internalModel,
+        internalModel: model.internalModel,
       };
+
+      // Enable PIXI interaction system
+      app.renderer.plugins.interaction.moveWhenInside = true;
+
+      // Set model as interactive
+      model.interactive = true;
+      (model as unknown as { buttonMode?: boolean }).buttonMode = true;
+
+      // Mouse move: gaze follow
+      const canvasEl = canvasRef.current!;
+      canvasEl.addEventListener('pointermove', (e: PointerEvent) => {
+        if (!modelRef.current || !canvasRef.current) return;
+        const rect = canvasRef.current.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        modelRef.current.focus(x, y);
+      });
+
+      // Mouse click: hit detection
+      canvasEl.addEventListener('pointerdown', (e: PointerEvent) => {
+        if (!modelRef.current || !canvasRef.current) return;
+        const rect = canvasRef.current.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        modelRef.current.tap(x, y);
+      });
+
+      // Listen for hit events
+      model.on('hit', (hitAreas: string[]) => {
+        console.log('[Live2DCanvas] Hit areas:', hitAreas);
+        onHit?.(hitAreas);
+      });
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Unknown error';
       console.error('[Live2DCanvas] Initialization failed:', errorMsg);
       setError(errorMsg);
       setLoading(false);
     }
-  }, [modelPath, width, height]);
+  }, [modelPath, width, height, expressionId]);
 
   /**
-   * Start the update loop for expressions and model updates
-   */
-  const startUpdateLoop = () => {
-    const update = () => {
-      if (!modelRef.current) return;
-
-      // Update the Live2D model (needed for proper rendering)
-      const model = modelRef.current;
-      if (typeof model.update === 'function') {
-        model.update(appRef.current?.ticker?.deltaMS || 16.67);
-      }
-
-      // Get current expression parameters
-      const params = getExpressionParams?.();
-
-      if (params) {
-        // Apply expression parameters to Live2D model
-        applyExpressionParams(model, params);
-      }
-
-      animationFrameRef.current = requestAnimationFrame(update);
-    };
-
-    update();
-  };
-
-  /**
-   * Apply expression parameters to Live2D model
-   */
-  const applyExpressionParams = (model: Live2DModel, params: Record<string, number>) => {
-    // Map common parameter names to Live2D parameter IDs
-    const paramMapping: Record<string, string> = {
-      eyeOpenL: 'ParamEyeLOpen',
-      eyeOpenR: 'ParamEyeROpen',
-      eyeSmileL: 'ParamEyeLSmile',
-      eyeSmileR: 'ParamEyeRSmile',
-      browLY: 'ParamBrowLY',
-      browRY: 'ParamBrowRY',
-      browLAngle: 'ParamBrowLAngle',
-      mouthForm: 'ParamMouthForm',
-      mouthOpen: 'ParamMouthOpenY',
-      angleY: 'ParamAngleY',
-      angleZ: 'ParamAngleZ',
-      cheekRed: 'ParamCheekRed',
-    };
-
-    try {
-      // Access Cubism 4 core model through internalModel
-      const internalModel = (model as Record<string, unknown>).internalModel as Record<string, unknown> | undefined;
-      const coreModel = internalModel?.coreModel as { setParameterValueById?: (id: string, value: number) => void } | undefined;
-
-      if (!coreModel || typeof coreModel.setParameterValueById !== 'function') {
-        return;
-      }
-
-      Object.entries(params).forEach(([key, value]) => {
-        const paramId = paramMapping[key];
-        if (paramId) {
-          coreModel.setParameterValueById!(paramId, value);
-        }
-      });
-    } catch (err) {
-      // Silently ignore expression errors during initial load
-    }
-  };
-
-  /**
-   * Change motion
+   * Listen for expression changes and apply via pixi-live2d-display ExpressionManager
    */
   useEffect(() => {
     if (!modelRef.current) return;
-
-    // Check if model has motion manager and motions loaded
     const model = modelRef.current;
-    const motionManager = (model as Record<string, unknown>).internalModel?.motionManager;
+    const mappedExpression = EMOTION_TO_EXPRESSION[expressionId] ?? 'mouth_left';
+    // model.expression(name) internally calls ExpressionManager.setExpression(name)
+    // name must exactly match Expressions[].Name in shark.model3.json
+    model.expression(mappedExpression).then((success) => {
+      if (success) {
+        console.log('[Live2DCanvas] Expression applied:', mappedExpression, '(from:', expressionId, ')');
+      } else {
+        console.warn('[Live2DCanvas] Expression not found:', mappedExpression);
+      }
+    }).catch((err) => {
+      console.warn('[Live2DCanvas] Expression error:', err);
+    });
+  }, [expressionId]);
 
-    if (!motionManager || !motionManager.motionNames || motionManager.motionNames.length === 0) {
-      console.log('[Live2DCanvas] No motions available on this model');
+  /**
+   * Change motion (safe version for models without motion files)
+   */
+  useEffect(() => {
+    if (!modelRef.current) return;
+    const model = modelRef.current;
+    const motionManager = (model.internalModel as unknown as Live2DInternalModel)?.motionManager;
+
+    if (!motionManager?.definitions || Object.keys(motionManager.definitions).length === 0) {
+      // Model has no motion files, skip (shark model has no .motion3.json)
       return;
     }
-
-    // Start the specified motion
-    const motionIndex = motionId === 'idle2' ? 1 : 0;
-    try {
-      // Try to get available motion groups
-      const motionNames = motionManager.motionNames;
-      const motionName = motionNames[0] || 'Idle';
-      model.motion(motionName, motionIndex);
-      console.log('[Live2DCanvas] Started motion:', motionName, 'index:', motionIndex);
-    } catch (error) {
-      console.warn('[Live2DCanvas] Failed to start motion:', error);
-    }
+    // Motion call when available: model.motion(group, index, priority)
+    const group = Object.keys(motionManager.definitions)[0];
+    model.motion(group, 0).catch(() => {});
   }, [motionId]);
 
   /**
@@ -234,9 +245,6 @@ export function Live2DCanvas({
 
     return () => {
       clearTimeout(timer);
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current);
-      }
       appRef.current?.destroy(true);
     };
   }, [initLive2D]);

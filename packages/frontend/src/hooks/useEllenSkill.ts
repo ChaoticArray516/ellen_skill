@@ -19,7 +19,7 @@ import {
 /**
  * WebSocket configuration
  */
-const WS_URL = 'ws://127.0.0.1:8080';
+const WS_URL = 'ws://127.0.0.1:8081';
 const MAX_RECONNECT_ATTEMPTS = 5;
 const RECONNECT_DELAY = 1000;
 
@@ -183,13 +183,6 @@ export function useEllenSkill() {
     wsClientRef.current?.connect();
   }, []);
 
-  /**
-   * Gets current expression parameters for Live2D
-   */
-  const getExpressionParams = useCallback(() => {
-    return expressionRef.current?.update() || null;
-  }, []);
-
   return {
     // State
     connectionStatus: state.connectionStatus,
@@ -202,6 +195,5 @@ export function useEllenSkill() {
     initializeAudio,
     sendMessage,
     reconnect,
-    getExpressionParams,
   };
 }

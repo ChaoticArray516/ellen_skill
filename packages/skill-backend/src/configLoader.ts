@@ -200,7 +200,10 @@ function validateConfig(config: SkillConfig): void {
   // Validate LLM API Key
   if (!config.llm.api_key || config.llm.api_key.trim() === '') {
     throw new Error(
-      'LLM_API_KEY is required. Set it in .env file or environment variable.'
+      'LLM_API_KEY is required.\n' +
+      '  1. Copy .env.example to .env in the project root\n' +
+      '  2. Fill in your API key: LLM_API_KEY=your_api_key_here\n' +
+      '  3. Restart the backend server'
     );
   }
 

@@ -124,16 +124,19 @@ ellen_skill/
 ├── openclaw.json           # Skill manifest for OpenClaw
 ├── config.yaml             # Unified configuration file
 ├── .env.example            # Environment variables template
+├── start.bat               # Windows one-click startup script
+├── start.sh                # Unix one-click startup script
 ├── packages/
 │   ├── skill-backend/      # TypeScript backend
 │   │   ├── src/
-│   │   │   ├── index.ts           # Main entry point
-│   │   │   ├── voiceBridge.ts     # TTS integration
-│   │   │   ├── wsServer.ts        # WebSocket server
-│   │   │   ├── configLoader.ts    # Configuration loader
-│   │   │   ├── persona.ts         # Ellen's character definition
-│   │   │   ├── audioCache.ts      # LRU+TTL audio cache
-│   │   │   └── logger.ts          # Structured logging
+│   │   │   ├── index.ts              # Main entry point
+│   │   │   ├── voiceBridge.ts        # TTS integration
+│   │   │   ├── wsServer.ts           # WebSocket server
+│   │   │   ├── configLoader.ts       # Configuration loader
+│   │   │   ├── userOperationLogger.ts # User interaction logger
+│   │   │   ├── persona.ts            # Ellen's character definition
+│   │   │   ├── audioCache.ts         # LRU+TTL audio cache
+│   │   │   └── logger.ts             # Structured logging
 │   │   └── package.json
 │   ├── frontend/           # React + TypeScript frontend
 │   │   ├── src/
@@ -145,6 +148,8 @@ ellen_skill/
 │   └── tts-server/         # GPT-SoVITS v4 service wrapper
 ├── components/             # Model files
 │   └── v4/艾莲/           # Ellen's GPT-SoVITS model
+├── logs/                   # Runtime logs (auto-created)
+│   └── user_operations.log # User interaction audit log
 ├── scripts/                # Test and utility scripts
 │   ├── test_tts.py        # TTS connectivity test
 │   └── test_ws_client.js  # WebSocket client test
@@ -219,13 +224,41 @@ cp /path/to/your/reference.wav components/v4/艾莲/reference_audios/日语/emot
 
 ### Running the Skill
 
+#### Option 1: One-Click Startup (Recommended)
+
+**Windows:**
+```powershell
+# Double-click or run in terminal
+.\start.bat
+```
+
+**macOS/Linux:**
+```bash
+# Make executable and run
+chmod +x start.sh
+./start.sh
+```
+
+The startup scripts will:
+- Check for `.env` file and create from `.env.example` if missing
+- Validate `LLM_API_KEY` is configured
+- Build the backend if needed
+- Start backend WebSocket server (port 8080)
+- Start frontend dev server (port 5173)
+- Open browser automatically
+- Log output to `logs/` directory
+
+#### Option 2: Manual Start
+
 **Development Mode:**
 ```bash
 # Terminal 1: Start backend
-npm run dev:backend
+cd packages/skill-backend
+npm run dev
 
 # Terminal 2: Start frontend
-npm run dev:frontend
+cd packages/frontend
+npm run dev
 ```
 
 **Production Mode:**
@@ -423,6 +456,29 @@ const result = await synthesizeSpeech(rawText, config);
 [2024-01-15T10:30:00.100Z] [INFO] [WSServer] Broadcasted to 2 clients
 ```
 
+### User Operation Logging
+
+All user interactions are automatically logged to `logs/user_operations.log` (excluded from git via `.gitignore`):
+
+**Logged Operations:**
+- `user_message` - User input messages
+- `llm_response` - AI-generated responses with emotion tags
+- `tts_synthesis` - Voice synthesis attempts and duration
+- `client_connect` / `client_disconnect` - WebSocket connection events
+- `status_change` - System status transitions
+- `error` - Error events with stack traces
+
+**Log Format (JSON Lines):**
+```json
+{"timestamp":"2026-03-12T02:49:22.742Z","type":"user_message","clientId":"...","content":"你好艾莲"}
+{"timestamp":"2026-03-12T02:49:25.418Z","type":"llm_response","emotion":"lazy","responsePreview":"はぁ…ご主人様..."}
+```
+
+**Features:**
+- Automatic log rotation (10MB max per file, 5 backups)
+- Structured JSON for easy parsing and analysis
+- Configurable via `UserOperationLogger` class
+
 ## Interface Specifications
 
 ### 1. OpenClaw Skill Manifest (`openclaw.json`)
@@ -530,7 +586,9 @@ interface MultimodalSyncPacket {
 
 ### Phase 5: Testing & Optimization 🚧
 - [x] End-to-end flow testing
+- [x] User operation logging with log rotation
 - [ ] Performance optimization (audio caching, connection pooling)
+- [x] One-click startup scripts (Windows/Linux)
 - [ ] Comprehensive documentation
 
 ## Acceptance Criteria
@@ -554,6 +612,18 @@ interface MultimodalSyncPacket {
 | Model files not found | Check paths in `config.yaml` are absolute |
 | CUDA out of memory | Reduce `batch_size` or use CPU mode |
 | Japanese text not synthesizing | Ensure text contains valid Japanese characters |
+| `.env` not found | Run `start.bat` or `start.sh` to auto-create from `.env.example` |
+
+### Log Files
+
+Runtime logs are stored in the `logs/` directory (excluded from git):
+
+| Log File | Description |
+|----------|-------------|
+| `logs/startup.log` | Startup script output |
+| `logs/backend.log` | Backend server logs |
+| `logs/frontend.log` | Frontend dev server logs |
+| `logs/user_operations.log` | User interaction audit trail |
 
 ### GPT-SoVITS V4 Integration
 
