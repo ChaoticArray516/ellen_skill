@@ -30,6 +30,8 @@ import { Live2DModel } from 'pixi-live2d-display/cubism4';
      definitions?: Record<string, unknown[]>;
      expressionManager?: unknown;
    };
+   originalWidth?: number;
+   originalHeight?: number;
  }
 
 /**
@@ -48,6 +50,8 @@ interface Live2DCanvasProps {
   width?: number;
   /** Canvas height */
   height?: number;
+  /** Enable auto-fit to container */
+  autoFit?: boolean;
 }
 
 // Emotion ID to shark.model3.json expression name mapping
@@ -59,6 +63,35 @@ const EMOTION_TO_EXPRESSION: Record<string, string> = {
   shy: 'blush',
   surprised: 'stunned',
   happy: 'mouth_right',
+};
+
+// Motion animation configuration (for models without .motion3.json files)
+interface MotionAnimation {
+  breathAmplitude: number;   // Breath amplitude (0-1)
+  bodySwayX: number;         // Body left-right sway amplitude (-10 to 10)
+  bodySwayZ: number;         // Body rotation amplitude
+  headSwayX: number;         // Head left-right rotation amplitude (-30 to 30)
+  headSwayY: number;         // Head up-down rotation amplitude
+  speedMultiplier: number;   // Animation speed multiplier
+}
+
+const MOTION_ANIMATIONS: Record<string, MotionAnimation> = {
+  idle: {
+    breathAmplitude: 0.3,    // Light breathing
+    bodySwayX: 1.5,          // Minimal body sway (lazy standby)
+    bodySwayZ: 0.8,
+    headSwayX: 3.0,          // Small head movement
+    headSwayY: 1.5,
+    speedMultiplier: 0.6,    // Slow (lazy feeling)
+  },
+  idle2: {
+    breathAmplitude: 0.5,    // Deeper breathing
+    bodySwayX: 3.0,          // Larger sway (dynamic when speaking)
+    bodySwayZ: 1.5,
+    headSwayX: 6.0,          // Larger head movement
+    headSwayY: 3.0,
+    speedMultiplier: 1.0,    // Normal speed
+  },
 };
 
 /**
@@ -73,18 +106,102 @@ export function Live2DCanvas({
   onHit,
   width = 800,
   height = 600,
+  autoFit = false,
 }: Live2DCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const appRef = useRef<Application | null>(null);
   const modelRef = useRef<Live2DModel | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [containerSize, setContainerSize] = useState({ width, height });
+  const animationTickerRef = useRef<((delta: number) => void) | null>(null);
+
+  /**
+   * Calculate optimal model scale based on container size
+   */
+  const calcAutoFitScale = useCallback((containerWidth: number, containerHeight: number) => {
+    // Ellen's model original size reference (approximate)
+    // The model is very tall (full body), so we need a smaller scale to fit upper body
+    const baseWidth = 1200;
+    const baseHeight = 1600;
+
+    // Calculate scale to fit within container
+    // Use smaller ratio (0.4) to make model fit better and show upper body
+    const scaleX = (containerWidth * 0.4) / baseWidth;
+    const scaleY = (containerHeight * 0.4) / baseHeight;
+
+    // Use the smaller scale to ensure model fits within both dimensions
+    // Use smaller bounds (0.08 to 0.15) for a more zoomed-out view
+    const scale = Math.min(scaleX, scaleY);
+    return Math.max(0.08, Math.min(0.15, scale));
+  }, []);
+
+  /**
+   * Monitor container size changes using ResizeObserver
+   */
+  useEffect(() => {
+    if (!autoFit || !containerRef.current) return;
+
+    const resizeObserver = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (entry) {
+        const { width: newWidth, height: newHeight } = entry.contentRect;
+        setContainerSize({ width: newWidth, height: newHeight });
+
+        // Update PIXI app and model if already initialized
+        if (appRef.current && modelRef.current) {
+          appRef.current.renderer.resize(newWidth, newHeight);
+
+          const model = modelRef.current;
+          const newScale = calcAutoFitScale(newWidth, newHeight);
+          model.x = newWidth / 2;
+          // Position model to show upper body including head
+          // Position at 60% of container height to center the model better
+          model.y = newHeight * 0.6;
+          model.scale.set(newScale);
+        }
+      }
+    });
+
+    resizeObserver.observe(containerRef.current);
+
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, [autoFit, calcAutoFitScale]);
 
   /**
    * Initialize Live2D
    */
   const initLive2D = useCallback(async () => {
     if (!canvasRef.current) return;
+
+    // Prevent re-initialization if already initialized
+    if (appRef.current) {
+      console.log('[Live2DCanvas] Already initialized, skipping...');
+      return;
+    }
+
+    // When autoFit is enabled, get dimensions from container ref directly
+    let canvasWidth = width;
+    let canvasHeight = height;
+
+    if (autoFit) {
+      if (containerRef.current) {
+        const rect = containerRef.current.getBoundingClientRect();
+        canvasWidth = Math.floor(rect.width);
+        canvasHeight = Math.floor(rect.height);
+      }
+
+      // Wait for container to have valid size
+      if (canvasWidth === 0 || canvasHeight === 0) {
+        console.log('[Live2DCanvas] Waiting for container resize...', { canvasWidth, canvasHeight });
+        return;
+      }
+    }
+
+    console.log('[Live2DCanvas] Initializing with dimensions:', { canvasWidth, canvasHeight, autoFit });
 
     try {
       setLoading(true);
@@ -96,15 +213,20 @@ export function Live2DCanvas({
         throw new Error('Live2D Cubism Core not loaded. Please check your internet connection.');
       }
 
+      // Validate dimensions
+      if (canvasWidth <= 0 || canvasHeight <= 0) {
+        throw new Error(`Invalid canvas dimensions: ${canvasWidth}x${canvasHeight}`);
+      }
+
       // Create PIXI application
       const app = new Application({
         view: canvasRef.current,
-        width,
-        height,
+        width: canvasWidth,
+        height: canvasHeight,
         backgroundAlpha: 0,
         antialias: true,
-        resolution: window.devicePixelRatio || 1,
-        autoDensity: true,
+        resolution: 1, // Use fixed resolution to avoid DPI scaling issues
+        autoDensity: false,
       });
       appRef.current = app;
 
@@ -131,9 +253,12 @@ export function Live2DCanvas({
       app.stage.addChild(model);
 
       // Position and scale the model to show Ellen's upper body
-      model.x = width / 2;
-      model.y = height / 2 + 150;
-      model.scale.set(0.2);
+      const scale = autoFit ? calcAutoFitScale(canvasWidth, canvasHeight) : 0.12;
+      model.x = canvasWidth / 2;
+      // Position model to show upper body including head
+      // Position at 60% of container height to center the model better
+      model.y = canvasHeight * 0.6;
+      model.scale.set(scale);
       model.anchor.set(0.5, 0.5);
 
       // Apply default expression
@@ -195,7 +320,20 @@ export function Live2DCanvas({
       setError(errorMsg);
       setLoading(false);
     }
-  }, [modelPath, width, height, expressionId]);
+  }, [modelPath, width, height, expressionId, autoFit, calcAutoFitScale]);
+
+  /**
+   * Initialize on mount when autoFit is enabled
+   */
+  useEffect(() => {
+    if (!autoFit) return;
+
+    // Wait for container to have valid size
+    if (containerSize.width > 0 && containerSize.height > 0 && !appRef.current) {
+      console.log('[Live2DCanvas] Container has valid size, triggering init...', containerSize);
+      initLive2D();
+    }
+  }, [autoFit, containerSize, initLive2D]);
 
   /**
    * Listen for expression changes and apply via pixi-live2d-display ExpressionManager
@@ -218,26 +356,75 @@ export function Live2DCanvas({
   }, [expressionId]);
 
   /**
-   * Change motion (safe version for models without motion files)
+   * Motion animation: Use PIXI Ticker to drive parameter animations (alternative to missing .motion3.json)
    */
   useEffect(() => {
-    if (!modelRef.current) return;
-    const model = modelRef.current;
-    const motionManager = (model.internalModel as unknown as Live2DInternalModel)?.motionManager;
+    if (!modelRef.current || !appRef.current) return;
+    const app = appRef.current;
 
-    if (!motionManager?.definitions || Object.keys(motionManager.definitions).length === 0) {
-      // Model has no motion files, skip (shark model has no .motion3.json)
-      return;
+    // Remove old animation ticker
+    if (animationTickerRef.current) {
+      app.ticker.remove(animationTickerRef.current);
+      animationTickerRef.current = null;
     }
-    // Motion call when available: model.motion(group, index, priority)
-    const group = Object.keys(motionManager.definitions)[0];
-    model.motion(group, 0).catch(() => {});
+
+    const config = MOTION_ANIMATIONS[motionId] ?? MOTION_ANIMATIONS['idle'];
+
+    // Animation start time (for phase calculation to avoid parameter synchronization)
+    const startTime = performance.now();
+
+    const ticker = () => {
+      // Always get the latest model ref and coreModel inside the ticker
+      // to avoid stale closure issues when motionId changes
+      const currentModelRef = modelRef.current;
+      if (!currentModelRef?.internalModel) return;
+
+      const coreModel = (currentModelRef.internalModel as unknown as Live2DInternalModel).coreModel;
+      if (!coreModel?.setParameterValueById) return;
+
+      const t = (performance.now() - startTime) / 1000; // Convert to seconds
+      const s = config.speedMultiplier;
+
+      // Breathing animation (4 second period)
+      const breath = (Math.sin(t * s * Math.PI * 0.5) + 1) / 2 * config.breathAmplitude;
+      coreModel.setParameterValueById('ParamBreath', breath);
+
+      // Body left-right sway (6 second period, out of phase with breathing)
+      const bodyX = Math.sin(t * s * Math.PI * 0.33 + 0.5) * config.bodySwayX;
+      coreModel.setParameterValueById('ParamBodyAngleX', bodyX);
+
+      // Body rotation (8 second period)
+      const bodyZ = Math.sin(t * s * Math.PI * 0.25 + 1.0) * config.bodySwayZ;
+      coreModel.setParameterValueById('ParamBodyAngleZ', bodyZ);
+
+      // Head left-right rotation (5 second period, out of phase with body)
+      const headX = Math.sin(t * s * Math.PI * 0.4 + 0.8) * config.headSwayX;
+      coreModel.setParameterValueById('ParamAngleX', headX);
+
+      // Head up-down rotation (7 second period)
+      const headY = Math.sin(t * s * Math.PI * 0.286 + 1.5) * config.headSwayY;
+      coreModel.setParameterValueById('ParamAngleY', headY);
+    };
+
+    animationTickerRef.current = ticker;
+    app.ticker.add(ticker);
+
+    // Cleanup: Remove ticker when component unmounts or motionId changes
+    return () => {
+      if (animationTickerRef.current && appRef.current) {
+        appRef.current.ticker.remove(animationTickerRef.current);
+        animationTickerRef.current = null;
+      }
+    };
   }, [motionId]);
 
   /**
    * Initialize on mount
    */
   useEffect(() => {
+    // When autoFit is enabled, wait for ResizeObserver to provide valid dimensions
+    if (autoFit) return;
+
     // Delay initialization to ensure SDK scripts are loaded
     const timer = setTimeout(() => {
       initLive2D();
@@ -247,18 +434,25 @@ export function Live2DCanvas({
       clearTimeout(timer);
       appRef.current?.destroy(true);
     };
-  }, [initLive2D]);
+  }, [initLive2D, autoFit]);
+
+  // Use dynamic or fixed dimensions based on autoFit mode
+  const displayWidth = autoFit ? '100%' : width;
+  const displayHeight = autoFit ? '100%' : height;
+  const canvasWidth = autoFit ? containerSize.width : width;
+  const canvasHeight = autoFit ? containerSize.height : height;
 
   return (
-    <div style={{ position: 'relative', width, height }}>
+    <div ref={containerRef} style={{ position: 'relative', width: displayWidth, height: displayHeight }}>
       <canvas
         ref={canvasRef}
-        width={width}
-        height={height}
+        width={canvasWidth}
+        height={canvasHeight}
         style={{
-          width: `${width}px`,
-          height: `${height}px`,
+          width: displayWidth,
+          height: displayHeight,
           borderRadius: '8px',
+          display: 'block',
         }}
       />
       {loading && (

@@ -36,7 +36,7 @@ tts:
 
 websocket:
   host: "127.0.0.1"
-  port: 8080
+  port: 8081
   heartbeat_interval: 30     # seconds
   max_connections: 10
   reconnect_attempts: 5

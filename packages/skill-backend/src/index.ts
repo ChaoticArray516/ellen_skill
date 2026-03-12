@@ -15,7 +15,7 @@ import * as path from 'path';
 dotenv.config({ path: path.resolve(__dirname, '..', '..', '..', '.env') });
 
 import { loadConfig, SkillConfig } from './configLoader';
-import { synthesizeSpeech, switchToEllenModel } from './voiceBridge';
+import { synthesizeSpeech, switchToEllenModel, parseLLMResponse } from './voiceBridge';
 import { EllenWSServer } from './wsServer';
 import { EllenPersona } from './persona';
 import OpenAI from 'openai';
@@ -63,6 +63,27 @@ async function main(): Promise<void> {
     // Step 2.5: Register message handler (must be registered immediately after WS server starts)
     wsServer.setMessageHandler(handleMessage);
     logger.info('Message handler registered with WebSocket server');
+
+    // Step 2.8: Check TTS service connectivity (non-blocking)
+    try {
+      const ttsHealthCheck = await fetch(`${config.tts.api_url}/`, {
+        signal: AbortSignal.timeout(3000),  // 3 second timeout
+      }).catch(() => null);
+
+      if (ttsHealthCheck?.ok) {
+        logger.info('TTS service is available', { url: config.tts.api_url });
+      } else {
+        logger.warn(
+          '⚠️  TTS service not available. Voice synthesis will be disabled.\n' +
+          '   To enable voice:\n' +
+          '   1. Install GPT-SoVITS: https://github.com/RVC-Boss/GPT-SoVITS\n' +
+          `   2. Start service: python api_v2.py -a 127.0.0.1 -p 9880\n` +
+          `   3. Ensure model files exist at: ${config.tts.model.gpt_path}`
+        );
+      }
+    } catch {
+      logger.warn('TTS health check failed (non-fatal)');
+    }
 
     // Step 3: Switch TTS model to Ellen V4
     const modelSwitched = await switchToEllenModel(
@@ -138,23 +159,34 @@ async function handleMessage(userMessage: string): Promise<void> {
     // 4. Broadcast "speaking" status
     wsServer.sendStatus('speaking');
 
-    // 5. Call TTS synthesis (returns null on failure for graceful degradation)
+    // 5. Pre-parse LLM response to extract tags (regardless of TTS availability)
+    // This ensures clean text and correct expression/motion IDs even when TTS fails
+    const parsedResponse = parseLLMResponse(fullResponse);
+    logger.debug('Parsed LLM response', {
+      motionId: parsedResponse.motionId,
+      expressionId: parsedResponse.expressionId,
+      cleanText: parsedResponse.cleanText.substring(0, 50),
+    });
+
+    // 6. Call TTS synthesis (returns null on failure for graceful degradation)
     const ttsResult = await synthesizeSpeech(fullResponse, config);
 
     // Log TTS result
     if (ttsResult) {
       userLogger.logTTSSynthesis(ttsResult.text, ttsResult.duration, true);
     } else {
-      userLogger.logTTSSynthesis(fullResponse, 0, false);
+      userLogger.logTTSSynthesis(parsedResponse.cleanText, 0, false);
     }
 
-    // 6. Assemble and broadcast multimodal sync packet
+    // 7. Assemble and broadcast multimodal sync packet
+    // Use parsedResponse as fallback for all fields when TTS fails
+    // This ensures: clean text (no tags), correct expressionId, correct motionId
     const packet: MultimodalSyncPacket = {
       type: 'multimodal_sync',
-      text: ttsResult?.text ?? fullResponse,
+      text: ttsResult?.text ?? parsedResponse.cleanText,          // Use cleanText without tags
       audioData: ttsResult?.audioData ?? '',
-      motionId: ttsResult?.motionId ?? 'idle',
-      expressionId: ttsResult?.expressionId ?? 'lazy',
+      motionId: ttsResult?.motionId ?? parsedResponse.motionId,   // Parse from LLM response
+      expressionId: ttsResult?.expressionId ?? parsedResponse.expressionId, // Parse from LLM response
       sampleRate: ttsResult?.sampleRate ?? 32000,
       duration: ttsResult?.duration ?? 0,
       timestamp: Date.now(),

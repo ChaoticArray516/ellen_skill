@@ -30,12 +30,13 @@ const RECONNECT_DELAY = 1000;
  */
 export function useEllenSkill() {
   // State
-  const [state, setState] = useState<EllenSkillState>({
+  const [state, setState] = useState<EllenSkillState & { ttsAvailable: boolean }>({
     connectionStatus: 'disconnected',
     currentText: '',
     currentExpression: 'lazy',
     isSpeaking: false,
     audioInitialized: false,
+    ttsAvailable: false,  // TTS availability status
   });
 
   // Refs for mutable state
@@ -94,11 +95,12 @@ export function useEllenSkill() {
     // Update expression
     expressionRef.current?.applyExpression(packet.expressionId);
 
-    // Update text
+    // Update state (including TTS availability from packet)
     setState((prev) => ({
       ...prev,
       currentText: packet.text,
       currentExpression: packet.expressionId,
+      ttsAvailable: packet.hasAudio,  // If this packet has audio, TTS is available
     }));
 
     // Play audio if available
@@ -190,6 +192,7 @@ export function useEllenSkill() {
     currentExpression: state.currentExpression,
     isSpeaking: state.isSpeaking,
     audioInitialized: state.audioInitialized,
+    ttsAvailable: state.ttsAvailable,  // TTS availability status
 
     // Actions
     initializeAudio,
