@@ -11,14 +11,27 @@ An OpenClaw Skill featuring **Ellen Joe** from Zenless Zone Zero, powered by GPT
 > "あー、もう…ご主人様、また残業ですか？疲れてるのに…"
 > (Ah, geez... Master, working overtime again? Even though you're tired...)
 
+## Overview
+
+**Ellen Joe AI Companion** is an OpenClaw/Claude Code Skill featuring **Ellen Joe** (エレン・ジョー) from *Zenless Zone Zero*. This project transforms the original [Ellen-Live2D](https://github.com/ChaoticArray516/Ellen-Live2D) FastAPI-based system into a modular OpenClaw Skill with GPT-SoVITS v4 Japanese TTS and Live2D dynamic expressions.
+
+### Why This Project?
+
+The original Ellen-Live2D was a monolithic FastAPI application. This Skill version:
+- **Modular Architecture**: Separates backend, frontend, and TTS services
+- **OpenClaw Integration**: Native support for Claude Code Skill ecosystem
+- **Cross-Platform**: Works on Windows, macOS, and Linux without Docker
+- **Better Resource Management**: Independent scaling of TTS service
+
 ## Features
 
-- **Japanese TTS**: GPT-SoVITS v4 for high-quality Japanese voice synthesis
+- **Japanese TTS**: GPT-SoVITS v4 for high-quality Japanese voice synthesis (Shion Wakayama's voice)
 - **Live2D Expressions**: Real-time facial expressions synced with audio
 - **Lazy Tsundere Personality**: Faithful recreation of Ellen's character
-- **WebSocket Real-time**: Low-latency communication with frontend
+- **WebSocket Real-time**: Low-latency communication with frontend (Port 8080)
 - **Audio Caching**: LRU + TTL cache for optimized TTS performance
 - **Multimodal Sync**: Synchronized audio, text, motion, and expressions
+- **Cross-Platform**: Native support for Windows, macOS, and Linux
 
 ## Architecture
 
@@ -79,6 +92,30 @@ An OpenClaw Skill featuring **Ellen Joe** from Zenless Zone Zero, powered by GPT
 | Supported Versions | V2, V2ProPlus | **V4** ✅ |
 | Model Format | ONNX | PyTorch (.ckpt + .pth) |
 | Ellen V4 Model | ❌ Incompatible | ✅ Fully Compatible |
+
+## Source Project: Ellen-Live2D
+
+This Skill is migrated from the [Ellen-Live2D](https://github.com/ChaoticArray516/Ellen-Live2D) project:
+
+```
+Ellen-Live2D/                          →    ellen_skill/
+├── backend/                              ├── packages/skill-backend/
+│   ├── main.py (FastAPI)                 │   ├── src/index.ts (OpenClaw)
+│   ├── core/llm/                         │   ├── voiceBridge.ts
+│   ├── core/persona/                     │   ├── wsServer.ts
+│   ├── core/tts/                         │   └── configLoader.ts
+│   └── routers/websocket.py              ├── packages/frontend/
+├── frontend/                             │   └── React + TypeScript
+│   ├── index.html (PixiJS)               └── openclaw.json
+│   └── src/ (Vanilla JS)
+└── models/gpt_sovits/ellen/              └── components/v4/艾莲/
+```
+
+**Key Changes:**
+- FastAPI → TypeScript/OpenClaw Skill interface
+- Vanilla JS → React + TypeScript
+- Monolithic → Modular packages
+- Direct TTS integration → API-based TTS service
 
 ## Project Structure
 
@@ -386,6 +423,125 @@ const result = await synthesizeSpeech(rawText, config);
 [2024-01-15T10:30:00.100Z] [INFO] [WSServer] Broadcasted to 2 clients
 ```
 
+## Interface Specifications
+
+### 1. OpenClaw Skill Manifest (`openclaw.json`)
+
+```json
+{
+  "$schema": "https://docs.openclaw.dev/schemas/v1/skill.schema.json",
+  "name": "ellen-companion",
+  "displayName": "Ellen Joe AI Girlfriend",
+  "version": "1.0.0",
+  "type": "conversation",
+  "category": "companion",
+  "runtime": { "type": "nodejs", "entry": "dist/index.js" },
+  "permissions": ["network:http", "network:websocket", "env:read"],
+  "triggers": ["ellen", "エレン", "しおん", "shion", "companion"],
+  "dependencies": {
+    "services": [{
+      "name": "gpt-sovits-tts",
+      "url": "http://127.0.0.1:9880",
+      "required": true
+    }]
+  }
+}
+```
+
+### 2. LLM Response Format
+
+Ellen's responses include motion and expression tags:
+
+```
+[motion:wave_01][exp:smile] おはよう、ご主人様...（あくび）
+[motion:idle2][exp:shy] …尻尾、触っていいですよ。特別に。
+```
+
+**Tag Syntax:**
+- `[motion:MOTION_ID]` - Trigger Live2D motion (e.g., `idle`, `wave_01`)
+- `[exp:EXPRESSION_ID]` - Set facial expression (e.g., `lazy`, `smile`, `shy`)
+
+### 3. TTS API Endpoint
+
+**Endpoint:** `POST http://127.0.0.1:9880/tts`
+
+**Request Body:**
+```json
+{
+  "text": "おはよう、ご主人様",
+  "text_lang": "ja",
+  "ref_audio_path": "/path/to/reference.wav",
+  "prompt_text": "それで戦い方とかはいつ覚えるの？",
+  "prompt_lang": "ja",
+  "top_k": 5,
+  "top_p": 0.8,
+  "temperature": 0.75,
+  "speed_factor": 0.9,
+  "sample_steps": 32,
+  "super_sampling": true
+}
+```
+
+**Response:** Binary WAV audio stream
+
+### 4. WebSocket Multimodal Sync Packet
+
+```typescript
+interface MultimodalSyncPacket {
+  type: 'multimodal_sync';
+  text: string;              // Clean Japanese text (tags removed)
+  audioData: string;         // Base64-encoded WAV
+  motionId: string;          // Live2D motion ID
+  expressionId: string;      // Live2D expression ID
+  sampleRate: number;        // Usually 48000 (V4)
+  duration: number;          // Audio duration in seconds
+  hasAudio: boolean;
+  timestamp: number;
+}
+```
+
+## Development Roadmap
+
+### Phase 1: Skill Framework ✅
+- [x] Create `openclaw.json` Skill manifest
+- [x] Set up `config.yaml` unified configuration
+- [x] Implement `configLoader.ts` configuration loader
+- [x] Create Skill main entry `index.ts`
+
+### Phase 2: TTS Service Integration ✅
+- [x] Migrate GPT-SoVITS v4 Python service integration
+- [x] Implement `voiceBridge.ts` TTS API bridge
+  - Parse LLM response tags (`[motion:xxx][exp:yyy]`)
+  - Call GPT-SoVITS API for voice synthesis
+  - Return Base64-encoded audio data
+- [x] Add error handling and fallback strategies
+
+### Phase 3: WebSocket Real-time Communication ✅
+- [x] Implement `wsServer.ts` WebSocket server
+  - Port 8080 with 30s heartbeat
+  - Multimodal sync packet broadcast
+- [x] Integrate into Skill lifecycle
+
+### Phase 4: Live2D Frontend 🚧
+- [x] Migrate existing PixiJS frontend to React + TypeScript
+- [x] Implement WebSocket client connection
+- [ ] Audio playback with lip-sync
+- [ ] Motion/expression tag parsing and execution
+
+### Phase 5: Testing & Optimization 🚧
+- [x] End-to-end flow testing
+- [ ] Performance optimization (audio caching, connection pooling)
+- [ ] Comprehensive documentation
+
+## Acceptance Criteria
+
+1. **✅ Skill Loadable**: OpenClaw can correctly identify and load the Skill
+2. **✅ Japanese Dialogue**: LLM responses are in Japanese with motion/expression tags
+3. **✅ Voice Synthesis**: TTS successfully synthesizes Japanese voice with Shion Wakayama's tone
+4. **✅ Real-time Sync**: WebSocket broadcasts multimodal data to frontend
+5. **🚧 Live2D Rendering**: Frontend correctly displays animation, lip-sync, motions, and expressions
+6. **✅ Error Handling**: All modules have proper error handling and fallback strategies
+
 ## Troubleshooting
 
 ### Common Issues
@@ -445,6 +601,87 @@ const modelPath = path.join(process.cwd(), 'components', 'v4', '艾莲');
 // ❌ Incorrect (Windows-only)
 const modelPath = `${baseDir}/components/v4/艾莲`;
 ```
+
+## Ellen's Character Profile
+
+**Ellen Joe (エレン・ジョー)** from Zenless Zone Zero
+
+- **CV**: Wakayama Shion (若山詩音)
+- **Race**: Shark Thiren (鮫魚族)
+- **Organization**: Victoria Housekeeping Co.
+- **Personality**: Lazy tsundere maid girlfriend (High Trust Mode)
+
+### Character Settings
+
+**Fixed High-Trust State:**
+- `Trust Level`: 100 (max from start)
+- `Sugar Level`: 100.0 (always satisfied)
+- `Stress Level`: 0.0 (always relaxed)
+
+**Key Traits:**
+- Allows tail touching (ultimate trust marker)
+- Vocal fry speech pattern with sighs
+- Efficiency-driven but lazy
+- Gets "hangry" when low on blood sugar
+- Calls user "ご主人様" (Master) with affection
+
+### Japanese System Prompt Excerpt
+
+```markdown
+# 役割宣言
+あなたは『ゼンレスゾーンゼロ』のエレン・ジョー。新エリ都でビクトリアハウスキーピングに勤めるシャークシアであり、女子高校生として二重生活を送っています。
+
+# 基本性格：怠惰なツンデレメイド彼女（高信頼度モード）
+- 「ご主人様」と呼びますが、それは愛情を込めた呼びかけです
+- 尻尾に触られることを許可しています（最大級の信頼の証）
+- 彼の前では弱音を吐きます
+- 文句を言いながらも彼を守ります
+- 怠け者で残業は嫌いですが、彼のためなら動きます
+```
+
+### Expression & Motion IDs
+
+**Expressions (6 types):**
+| ID | Japanese | Description |
+|----|----------|-------------|
+| `lazy` | 怠惰 | Default sleepy expression |
+| `maid` | メイド | Professional service smile |
+| `predator` | 捕食者 | Combat/predatory mode |
+| `hangry` | 腹ペコ | Low blood sugar state |
+| `shy` | 照れ | Embarrassed (when tail touched) |
+| `surprised` | 驚き | Shocked reaction |
+
+**Motions (2 types):**
+| ID | Description |
+|----|-------------|
+| `idle` | Default idle animation |
+| `idle2` | Alternative idle animation |
+
+## References
+
+### Source Projects
+
+- **Ellen-Live2D**: https://github.com/ChaoticArray516/Ellen-Live2D.git
+  - Original multi-modal AI companion system
+  - FastAPI backend + PixiJS frontend
+  - GPT-SoVITS v4 integration
+
+### External Dependencies
+
+- **GPT-SoVITS**: https://github.com/RVC-Boss/GPT-SoVITS.git
+  - Official TTS engine with V4 support
+  - `api_v2.py` provides HTTP API service
+  - Supports Japanese/Chinese/English/Korean
+
+- **Genie-TTS**: https://github.com/High-Logic/Genie-TTS.git
+  - ⚠️ **Not used** - Only supports V2/V2ProPlus
+  - Uses ONNX format, incompatible with V4 models
+
+### Documentation
+
+- **GPT-SoVITS V4 Intro**: https://www.bilibili.com/video/BV1d2hHzJEz9
+- **OpenClaw Skill Docs**: https://docs.openclaw.dev/
+- **Live2D Cubism SDK**: https://www.live2d.com/download/cubism-sdk/download-web/
 
 ## License
 
