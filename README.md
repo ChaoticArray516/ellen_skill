@@ -51,6 +51,8 @@ The original Ellen-Live2D was a monolithic FastAPI application. This Skill versi
 │  │ (YAML)      │  │ (TTS API)   │  │ (Broadcast)         │ │
 │  └─────────────┘  └──────┬──────┘  └─────────────────────┘ │
 │         │                │                                  │
+│  ┌───────────────────────┘                                  │
+│  │ TTS Process Manager (Port 9880 lifecycle)                │
 │         ▼                ▼                                  │
 │  ┌─────────────────────────────────────────────────────┐   │
 │  │              OpenClaw Skill Interface               │   │
@@ -134,6 +136,7 @@ ellen_skill/
 │   │   │   ├── wsServer.ts           # WebSocket server
 │   │   │   ├── configLoader.ts       # Configuration loader
 │   │   │   ├── userOperationLogger.ts # User interaction logger
+│   │   │   ├── ttsProcessManager.ts  # TTS service lifecycle manager
 │   │   │   ├── persona.ts            # Ellen's character definition
 │   │   │   ├── audioCache.ts         # LRU+TTL audio cache
 │   │   │   └── logger.ts             # Structured logging
@@ -142,7 +145,7 @@ ellen_skill/
 │   │   ├── src/
 │   │   │   ├── components/        # Live2DCanvas, etc.
 │   │   │   ├── hooks/             # useEllenSkill hook
-│   │   │   ├── services/          # WebSocketClient, AudioLipSync
+│   │   │   ├── services/          # WebSocketClient, AudioLipSync, ExpressionController
 │   │   │   └── App.tsx
 │   │   └── package.json
 │   └── tts-server/         # GPT-SoVITS v4 service wrapper
