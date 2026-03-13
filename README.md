@@ -167,7 +167,11 @@ ellen_skill/
 │       ├── integration-test.bat        # Windows integration suite
 │       ├── run-tests.sh                # Unix integration suite
 │       └── README.md                   # Test documentation
-└── docs/                   # Documentation
+└── docs/                   # Documentation and screenshots
+    ├── screenshot-ui-main.png          # Main UI screenshot
+    ├── screenshot-ui-messages.png      # Chat messages screenshot
+    ├── screenshot-ui-live2d.png        # Live2D canvas screenshot
+    └── screenshot-ui-outfit.png        # Alternative outfit screenshot
 ```
 
 ## 🔗 Related Repositories
@@ -627,6 +631,39 @@ The frontend features a dark elegant theme inspired by Victoria Housekeeping Co.
 │                           │  └───────────────────┘  │  │
 └───────────────────────────┴───────────────────────────┘
 ```
+
+## Screenshots
+
+### Victoria Housekeeping UI Theme
+
+The following screenshots demonstrate the ZZZ-inspired Victoria Housekeeping visual style with the signature black/red color scheme.
+
+**Main Interface - System Online**
+![Main UI](docs/screenshot-ui-main.png)
+*System Online status with S-Rank badge, emotion tags, and Victoria Housekeeping styling*
+
+**Chat Interface - Message History**
+![Messages](docs/screenshot-ui-messages.png)
+*Multi-turn conversation with emotion indicators (LAZY, SURPRISED) and ZZZ-style message bubbles*
+
+**Live2D Canvas - Character Display**
+![Live2D](docs/screenshot-ui-live2d.png)
+*Ellen Joe Live2D model with responsive scaling and corner decoration marks*
+
+**Alternative Outfit**
+![Outfit](docs/screenshot-ui-outfit.png)
+*Different character outfit showcasing the consistent UI theme*
+
+### Visual Features Demonstrated
+
+| Feature | Screenshot | Description |
+|---------|------------|-------------|
+| S-Rank Badge | Main, Messages | Silver-bordered "S" rank indicator in chat header |
+| Emotion Tags | Messages | Red HUD-style tags showing current expression |
+| Corner Decorations | Live2D | L-shaped red marks at Live2D section corners |
+| Status Indicator | All | "System Online" with red accent dot |
+| Dark Theme | All | Black (#0a0a0a) background with red accents |
+| Scanline Effect | All | Subtle horizontal scanline texture overlay |
 
 ## Performance Optimizations
 
