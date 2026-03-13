@@ -32,6 +32,7 @@ The original Ellen-Live2D was a monolithic FastAPI application. This Skill versi
 - **Audio Caching**: LRU + TTL cache for optimized TTS performance
 - **Multimodal Sync**: Synchronized audio, text, motion, and expressions
 - **Cross-Platform**: Native support for Windows, macOS, and Linux
+- **Victoria Housekeeping UI**: Dark elegant theme with signature red/black color scheme
 
 ## Architecture
 
@@ -547,6 +548,70 @@ const result = await synthesizeSpeech(rawText, config);
 // Returns: { audioData, sampleRate, duration, motionId, expressionId }
 ```
 
+## Frontend UI Theme
+
+### Victoria Housekeeping Design System
+
+The frontend features a dark elegant theme inspired by Victoria Housekeeping Co. from Zenless Zone Zero.
+
+#### Color Palette
+
+| Variable | Color | Usage |
+|----------|-------|-------|
+| `--black-deep` | `#0a0a0a` | Primary background |
+| `--black-mid` | `#141414` | Panel backgrounds |
+| `--black-light` | `#1e1e1e` | Elevated surfaces |
+| `--grey-dark` | `#2a2a2a` | Borders, dividers |
+| `--grey-mid` | `#555555` | Muted text |
+| `--grey-light` | `#888888` | Secondary text |
+| `--white-pure` | `#f5f5f5` | Primary text |
+| `--white-dim` | `#cccccc` | Secondary text |
+| `--red-accent` | `#cc2222` | Primary accent (Ellen's signature red) |
+| `--red-bright` | `#ff3333` | Hover/active states |
+| `--red-glow` | `rgba(204, 34, 34, 0.3)` | Glow effects |
+| `--silver` | `#aaaaaa` | Metallic details |
+
+#### Visual Effects
+
+**Scanline Texture Overlay:**
+- Subtle horizontal scanlines for retro-futuristic aesthetic
+- Opacity: 1% white lines on dark background
+
+**Vignette Effect:**
+- Radial gradient darkening edges
+- Creates focus on center content
+
+**Corner Decorations:**
+- L-shaped border marks in red accent color
+- Victoria Housekeeping signature style
+- Position: Top-left and bottom-right of Live2D section
+
+**Scrollbar Styling:**
+- Thin 4px width
+- Red accent thumb with hover brightening
+- Dark track matching panel background
+
+#### Layout Structure
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  ┌─────────────────────┐  ┌─────────────────────────┐  │
+│  │                     │  │                         │  │
+│  │   Live2D Canvas     │  │      Chat Interface     │  │
+│  │   (Left Section)    │  │      (Right Section)    │  │
+│  │                     │  │                         │  │
+│  │  ┌───┐             │  │  ┌───────────────────┐  │  │
+│  │  │ ◆ │ Corner      │  │  │   Status Bar      │  │  │
+│  │  └───┘ Marks       │  │  └───────────────────┘  │  │
+│  │                     │  │  ┌───────────────────┐  │  │
+│  │  ◆ Ellen Joe       │  │  │   Message List    │  │  │
+│  │    (Animated)      │  │  └───────────────────┘  │  │
+│  │                     │  │  ┌───────────────────┐  │  │
+│  └─────────────────────┘  │  │   Input Area      │  │  │
+│                           │  └───────────────────┘  │  │
+└───────────────────────────┴───────────────────────────┘
+```
+
 ## Performance Optimizations
 
 ### Audio Cache (LRU + TTL)
@@ -697,6 +762,9 @@ interface MultimodalSyncPacket {
 - [x] Responsive scaling (autoFit implementation)
 - [x] Text tag cleaning in dialog display
 - [x] Motion animation system (idle/idle2 modes)
+- [x] Victoria Housekeeping UI theme (red/black color scheme)
+- [x] Corner decoration marks and scanline effects
+- [x] Custom scrollbar styling
 - [ ] Audio playback with lip-sync
 - [ ] Expression badge display
 
