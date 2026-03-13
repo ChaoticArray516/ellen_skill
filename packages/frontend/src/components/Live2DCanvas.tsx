@@ -8,6 +8,7 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { Application, Ticker } from 'pixi.js';
 import { Live2DModel } from 'pixi-live2d-display/cubism4';
+import { ExpressionController } from '../services/ExpressionController';
 
 // Global type extensions for Live2D
  declare global {
@@ -54,7 +55,8 @@ interface Live2DCanvasProps {
   autoFit?: boolean;
 }
 
-// Emotion ID to shark.model3.json expression name mapping
+// Emotion ID to shark.model3.json expression name mapping (deprecated, use ExpressionController instead)
+// Kept for backward compatibility during migration
 const EMOTION_TO_EXPRESSION: Record<string, string> = {
   lazy: 'mouth_left',
   maid: 'holding_lollipop',
@@ -92,6 +94,38 @@ const MOTION_ANIMATIONS: Record<string, MotionAnimation> = {
     headSwayY: 3.0,
     speedMultiplier: 1.0,    // Normal speed
   },
+  lazy_stretch: {
+    breathAmplitude: 0.4,
+    bodySwayX: 4.0,          // Larger sway (lazy stretching)
+    bodySwayZ: 2.0,
+    headSwayX: 5.0,
+    headSwayY: 2.5,
+    speedMultiplier: 0.4,    // Very slow (ultra-lazy)
+  },
+  alert: {
+    breathAmplitude: 0.6,
+    bodySwayX: 2.0,
+    bodySwayZ: 1.0,
+    headSwayX: 4.0,
+    headSwayY: 2.0,
+    speedMultiplier: 1.8,    // Fast (alert/predator mode)
+  },
+  shy_fidget: {
+    breathAmplitude: 0.35,
+    bodySwayX: 1.0,          // Small, nervous movements
+    bodySwayZ: 0.5,
+    headSwayX: 2.0,
+    headSwayY: 1.0,
+    speedMultiplier: 1.2,    // Slightly fast (nervous)
+  },
+  hangry_sway: {
+    breathAmplitude: 0.45,
+    bodySwayX: 3.5,          // Irregular, frustrated sway
+    bodySwayZ: 2.5,
+    headSwayX: 4.5,
+    headSwayY: 3.0,
+    speedMultiplier: 1.4,    // Faster than normal (agitated)
+  },
 };
 
 /**
@@ -116,6 +150,7 @@ export function Live2DCanvas({
   const [error, setError] = useState<string | null>(null);
   const [containerSize, setContainerSize] = useState({ width, height });
   const animationTickerRef = useRef<((delta: number) => void) | null>(null);
+  const expressionControllerRef = useRef<ExpressionController | null>(null);
 
   /**
    * Calculate optimal model scale based on container size
@@ -283,6 +318,30 @@ export function Live2DCanvas({
         internalModel: model.internalModel,
       };
 
+      // Register expression callbacks after model is loaded
+      // This connects ExpressionController to the actual Live2D model
+      if (expressionControllerRef.current) {
+        expressionControllerRef.current.registerCallbacks({
+          // Track 1: Apply native expression file
+          applyNativeExpression: (name: string | null) => {
+            if (!modelRef.current) return;
+            if (name === null) {
+              // Reset to default (no expression file active)
+              // pixi-live2d-display: passing undefined resets expressions
+              modelRef.current.expression(undefined as unknown as string);
+            } else {
+              modelRef.current.expression(name);
+            }
+          },
+          // Track 2: Set individual parameter value
+          setParameter: (id: string, value: number) => {
+            if (!modelRef.current) return;
+            const coreModel = (modelRef.current.internalModel as unknown as Live2DInternalModel).coreModel;
+            coreModel?.setParameterValueById?.(id, value);
+          },
+        });
+      }
+
       // Enable PIXI interaction system
       app.renderer.plugins.interaction.moveWhenInside = true;
 
@@ -323,6 +382,18 @@ export function Live2DCanvas({
   }, [modelPath, width, height, expressionId, autoFit, calcAutoFitScale]);
 
   /**
+   * Initialize ExpressionController on mount
+   */
+  useEffect(() => {
+    // Create expression controller instance
+    expressionControllerRef.current = new ExpressionController();
+
+    return () => {
+      expressionControllerRef.current = null;
+    };
+  }, []);
+
+  /**
    * Initialize on mount when autoFit is enabled
    */
   useEffect(() => {
@@ -336,23 +407,14 @@ export function Live2DCanvas({
   }, [autoFit, containerSize, initLive2D]);
 
   /**
-   * Listen for expression changes and apply via pixi-live2d-display ExpressionManager
+   * Listen for expression changes and apply via ExpressionController
+   * Uses dual-track approach: native expression file + facial parameter overlay
    */
   useEffect(() => {
-    if (!modelRef.current) return;
-    const model = modelRef.current;
-    const mappedExpression = EMOTION_TO_EXPRESSION[expressionId] ?? 'mouth_left';
-    // model.expression(name) internally calls ExpressionManager.setExpression(name)
-    // name must exactly match Expressions[].Name in shark.model3.json
-    model.expression(mappedExpression).then((success) => {
-      if (success) {
-        console.log('[Live2DCanvas] Expression applied:', mappedExpression, '(from:', expressionId, ')');
-      } else {
-        console.warn('[Live2DCanvas] Expression not found:', mappedExpression);
-      }
-    }).catch((err) => {
-      console.warn('[Live2DCanvas] Expression error:', err);
-    });
+    if (!expressionControllerRef.current) return;
+    // Apply emotion through controller (handles both native expression + facial params)
+    expressionControllerRef.current.applyExpression(expressionId);
+    console.log('[Live2DCanvas] Expression emotion applied:', expressionId);
   }, [expressionId]);
 
   /**
@@ -404,6 +466,15 @@ export function Live2DCanvas({
       // Head up-down rotation (7 second period)
       const headY = Math.sin(t * s * Math.PI * 0.286 + 1.5) * config.headSwayY;
       coreModel.setParameterValueById('ParamAngleY', headY);
+
+      // Eye tracking: eyeballs follow head movement slightly
+      const eyeX = Math.sin(t * s * Math.PI * 0.4 + 0.8) * 0.3;
+      const eyeY = Math.sin(t * s * Math.PI * 0.286 + 1.5) * 0.2;
+      coreModel.setParameterValueById('ParamEyeBallX', eyeX);
+      coreModel.setParameterValueById('ParamEyeBallY', eyeY);
+
+      // Update expression transitions (dual-track animation)
+      expressionControllerRef.current?.update();
     };
 
     animationTickerRef.current = ticker;

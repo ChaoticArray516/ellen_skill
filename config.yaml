@@ -19,6 +19,12 @@ llm:
 tts:
   api_url: "http://127.0.0.1:9880"
   language: "ja"
+  # --- New: Process auto-launch configuration ---
+  auto_launch: false              # Set to true to auto-start GPT-SoVITS on startup
+  gptsovits_path: ""              # Absolute path to GPT-SoVITS repo root, e.g., "D:/GPT-SoVITS"
+  python_executable: "python"     # Python executable, conda example: "D:/conda/envs/gsv/python.exe"
+  startup_timeout_seconds: 90     # Max seconds to wait for service ready (model loading takes 30-90s)
+  # --- Original fields remain unchanged ---
   model:
     gpt_path: "components/v4/艾莲/艾莲-e10.ckpt"
     sovits_path: "components/v4/艾莲/艾莲_e10_s460_l32.pth"

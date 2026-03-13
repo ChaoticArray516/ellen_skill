@@ -30,10 +30,11 @@ const RECONNECT_DELAY = 1000;
  */
 export function useEllenSkill() {
   // State
-  const [state, setState] = useState<EllenSkillState & { ttsAvailable: boolean }>({
+  const [state, setState] = useState<EllenSkillState & { ttsAvailable: boolean; currentMotion: string }>({
     connectionStatus: 'disconnected',
     currentText: '',
     currentExpression: 'lazy',
+    currentMotion: 'idle',  // Current motion animation ID
     isSpeaking: false,
     audioInitialized: false,
     ttsAvailable: false,  // TTS availability status
@@ -87,6 +88,33 @@ export function useEllenSkill() {
   }, []);
 
   /**
+   * Maps current emotion to appropriate motion animation.
+   * Called when expression changes to update motion accordingly.
+   */
+  const getMotionForEmotion = useCallback((emotion: string, speaking: boolean): string => {
+    if (speaking) {
+      // During speech, use emotion-specific speaking animations
+      switch (emotion) {
+        case 'predator':
+        case 'surprised': return 'alert';
+        case 'shy':       return 'shy_fidget';
+        case 'hangry':    return 'hangry_sway';
+        case 'lazy':      return 'lazy_stretch';
+        default:          return 'idle2';
+      }
+    }
+    // Idle state: use emotion-specific idle animations
+    switch (emotion) {
+      case 'predator':
+      case 'surprised': return 'alert';
+      case 'shy':       return 'shy_fidget';
+      case 'hangry':    return 'hangry_sway';
+      case 'lazy':      return 'lazy_stretch';
+      default:          return 'idle';
+    }
+  }, []);
+
+  /**
    * Handles multimodal sync packets from backend
    */
   const handleMultimodalPacket = useCallback((packet: MultimodalSyncPacket) => {
@@ -95,11 +123,15 @@ export function useEllenSkill() {
     // Update expression
     expressionRef.current?.applyExpression(packet.expressionId);
 
+    // Get motion based on emotion and speaking state
+    const newMotion = getMotionForEmotion(packet.expressionId, false);
+
     // Update state (including TTS availability from packet)
     setState((prev) => ({
       ...prev,
       currentText: packet.text,
       currentExpression: packet.expressionId,
+      currentMotion: newMotion,  // Update motion based on emotion
       ttsAvailable: packet.hasAudio,  // If this packet has audio, TTS is available
     }));
 
@@ -107,7 +139,7 @@ export function useEllenSkill() {
     if (packet.hasAudio && packet.audioData) {
       playAudio(packet.audioData, packet.sampleRate);
     }
-  }, []);
+  }, [getMotionForEmotion]);
 
   /**
    * Handles status messages from backend
@@ -117,17 +149,33 @@ export function useEllenSkill() {
 
     switch (statusMsg.status) {
       case 'thinking':
-        setState((prev) => ({ ...prev, isSpeaking: false }));
+        setState((prev) => ({
+          ...prev,
+          isSpeaking: false,
+          currentMotion: getMotionForEmotion(prev.currentExpression, false),
+        }));
         break;
       case 'speaking':
-        setState((prev) => ({ ...prev, isSpeaking: true }));
+        setState((prev) => ({
+          ...prev,
+          isSpeaking: true,
+          currentMotion: getMotionForEmotion(prev.currentExpression, true),
+        }));
         break;
       case 'ready':
-        setState((prev) => ({ ...prev, isSpeaking: false }));
+        setState((prev) => ({
+          ...prev,
+          isSpeaking: false,
+          currentMotion: getMotionForEmotion(prev.currentExpression, false),
+        }));
         break;
       case 'error':
         console.error('[useEllenSkill] Backend error:', statusMsg.message);
-        setState((prev) => ({ ...prev, isSpeaking: false }));
+        setState((prev) => ({
+          ...prev,
+          isSpeaking: false,
+          currentMotion: getMotionForEmotion(prev.currentExpression, false),
+        }));
         break;
     }
   }, []);
@@ -190,6 +238,7 @@ export function useEllenSkill() {
     connectionStatus: state.connectionStatus,
     currentText: state.currentText,
     currentExpression: state.currentExpression,
+    currentMotion: state.currentMotion,  // Current motion animation ID
     isSpeaking: state.isSpeaking,
     audioInitialized: state.audioInitialized,
     ttsAvailable: state.ttsAvailable,  // TTS availability status

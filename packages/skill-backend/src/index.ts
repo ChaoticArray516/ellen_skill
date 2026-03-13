@@ -16,6 +16,7 @@ dotenv.config({ path: path.resolve(__dirname, '..', '..', '..', '.env') });
 
 import { loadConfig, SkillConfig } from './configLoader';
 import { synthesizeSpeech, switchToEllenModel, parseLLMResponse } from './voiceBridge';
+import { launchTTSProcess, stopTTSProcess } from './ttsProcessManager';
 import { EllenWSServer } from './wsServer';
 import { EllenPersona } from './persona';
 import OpenAI from 'openai';
@@ -64,25 +65,44 @@ async function main(): Promise<void> {
     wsServer.setMessageHandler(handleMessage);
     logger.info('Message handler registered with WebSocket server');
 
-    // Step 2.8: Check TTS service connectivity (non-blocking)
-    try {
-      const ttsHealthCheck = await fetch(`${config.tts.api_url}/`, {
-        signal: AbortSignal.timeout(3000),  // 3 second timeout
-      }).catch(() => null);
+    // Step 2.8: Launch or connect to GPT-SoVITS service
+    // If auto_launch is enabled, spawn the GPT-SoVITS process
+    // If already running (user-launched), just verify connectivity
+    const ttsLaunchConfig = {
+      autoLaunch: (config.tts as Record<string, unknown>).auto_launch === true,
+      gptsovitsPath: String((config.tts as Record<string, unknown>).gptsovits_path ?? ''),
+      pythonExecutable: String((config.tts as Record<string, unknown>).python_executable ?? 'python'),
+      apiHost: '127.0.0.1',
+      apiPort: 9880,
+      startupTimeoutSeconds: Number((config.tts as Record<string, unknown>).startup_timeout_seconds ?? 90),
+    };
 
-      if (ttsHealthCheck?.ok) {
-        logger.info('TTS service is available', { url: config.tts.api_url });
+    if (ttsLaunchConfig.autoLaunch) {
+      logger.info('Auto-launching GPT-SoVITS v4...');
+      const launched = await launchTTSProcess(ttsLaunchConfig);
+      if (launched) {
+        logger.info('GPT-SoVITS v4 is ready');
       } else {
-        logger.warn(
-          '⚠️  TTS service not available. Voice synthesis will be disabled.\n' +
-          '   To enable voice:\n' +
-          '   1. Install GPT-SoVITS: https://github.com/RVC-Boss/GPT-SoVITS\n' +
-          `   2. Start service: python api_v2.py -a 127.0.0.1 -p 9880\n` +
-          `   3. Ensure model files exist at: ${config.tts.model.gpt_path}`
-        );
+        logger.warn('GPT-SoVITS v4 failed to start. Voice synthesis will be disabled.');
       }
-    } catch {
-      logger.warn('TTS health check failed (non-fatal)');
+    } else {
+      // Manual mode: just check if service is available
+      try {
+        const healthCheck = await fetch(`${config.tts.api_url}/`, {
+          signal: AbortSignal.timeout(3000),
+        }).catch(() => null);
+
+        if (healthCheck?.ok || healthCheck?.status === 404) {
+          logger.info('GPT-SoVITS service detected (manually started)', { url: config.tts.api_url });
+        } else {
+          logger.warn(
+            '⚠️  GPT-SoVITS not running. Set tts.auto_launch: true in config.yaml to auto-start.\n' +
+            '   Or manually start: cd /path/to/GPT-SoVITS && python api_v2.py -a 127.0.0.1 -p 9880'
+          );
+        }
+      } catch {
+        logger.warn('TTS health check failed (non-fatal)');
+      }
     }
 
     // Step 3: Switch TTS model to Ellen V4
@@ -247,6 +267,9 @@ async function gracefulShutdown(): Promise<void> {
   try {
     // Log system shutdown
     userLogger.logSystemShutdown();
+
+    // Stop managed GPT-SoVITS process if we launched it
+    stopTTSProcess();
 
     if (wsServer) {
       await wsServer.close();

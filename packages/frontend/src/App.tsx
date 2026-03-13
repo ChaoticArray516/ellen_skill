@@ -19,6 +19,7 @@ function App() {
     connectionStatus,
     currentText,
     currentExpression,
+    currentMotion,
     isSpeaking,
     audioInitialized,
     ttsAvailable,
@@ -125,7 +126,7 @@ function App() {
         <div className="live2d-wrapper">
           <Live2DCanvas
             modelPath="/Shark/shark.model3.json"
-            motionId={isSpeaking ? 'idle2' : 'idle'}
+            motionId={currentMotion || (isSpeaking ? 'idle2' : 'idle')}
             expressionId={currentExpression}
             onHit={handleModelHit}
             autoFit={true}
