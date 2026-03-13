@@ -591,23 +591,39 @@ The frontend features a dark elegant theme inspired by Victoria Housekeeping Co.
 - Red accent thumb with hover brightening
 - Dark track matching panel background
 
+**S-Rank Badge (ZZZ Character Card Style):**
+- Silver bordered badge with "S" rank letter
+- "RANK" text below in uppercase
+- Inspired by Zenless Zone Zero character cards
+- Position: Right side of chat header
+
+**Emotion Tag in Messages (ZZZ HUD Style):**
+- Red accent background with subtle transparency
+- Uppercase text with letter spacing
+- Shows current expression (lazy, maid, predator, etc.)
+- Position: Above message text in chat bubbles
+
 #### Layout Structure
 
 ```
 ┌─────────────────────────────────────────────────────────┐
 │  ┌─────────────────────┐  ┌─────────────────────────┐  │
-│  │                     │  │                         │  │
-│  │   Live2D Canvas     │  │      Chat Interface     │  │
-│  │   (Left Section)    │  │      (Right Section)    │  │
-│  │                     │  │                         │  │
-│  │  ┌───┐             │  │  ┌───────────────────┐  │  │
-│  │  │ ◆ │ Corner      │  │  │   Status Bar      │  │  │
-│  │  └───┘ Marks       │  │  └───────────────────┘  │  │
 │  │                     │  │  ┌───────────────────┐  │  │
-│  │  ◆ Ellen Joe       │  │  │   Message List    │  │  │
-│  │    (Animated)      │  │  └───────────────────┘  │  │
-│  │                     │  │  ┌───────────────────┐  │  │
-│  └─────────────────────┘  │  │   Input Area      │  │  │
+│  │   Live2D Canvas     │  │  │ エレン・ジョー  │  │  │
+│  │   (Left Section)    │  │  │ Victoria Housekeeping│ │
+│  │                     │  │  │ [S] [RANK]        │  │  │
+│  │  ┌───┐             │  │  └───────────────────┘  │  │
+│  │  │ ◆ │ Corner      │  │  ┌───────────────────┐  │  │
+│  │  └───┘ Marks       │  │  │   Status Bar      │  │  │
+│  │                     │  │  │ System Online     │  │  │
+│  │  ◆ Ellen Joe       │  │  └───────────────────┘  │  │
+│  │    (Animated)      │  │  ┌───────────────────┐  │  │
+│  │                     │  │  │ [LAZY]            │  │  │
+│  └─────────────────────┘  │  │ Message text...   │  │  │
+│                           │  │                   │  │  │
+│                           │  └───────────────────┘  │  │
+│                           │  ┌───────────────────┐  │  │
+│                           │  │   Input Area      │  │  │
 │                           │  └───────────────────┘  │  │
 └───────────────────────────┴───────────────────────────┘
 ```
@@ -765,8 +781,10 @@ interface MultimodalSyncPacket {
 - [x] Victoria Housekeeping UI theme (red/black color scheme)
 - [x] Corner decoration marks and scanline effects
 - [x] Custom scrollbar styling
+- [x] S-Rank badge (ZZZ character card style)
+- [x] Emotion tags in messages (ZZZ HUD style)
+- [x] System status indicators ("System Online", "Link Severed")
 - [ ] Audio playback with lip-sync
-- [ ] Expression badge display
 
 ### Phase 5: Testing & Optimization ✅
 - [x] End-to-end flow testing

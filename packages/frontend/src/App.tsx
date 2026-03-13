@@ -31,8 +31,8 @@ function App() {
   const [inputText, setInputText] = useState('');
   const [showStartButton, setShowStartButton] = useState(true);
   const [chatOpen, setChatOpen] = useState(false);
-  const [messages, setMessages] = useState<Array<{role: 'user' | 'ellen', content: string}>>([
-    { role: 'ellen', content: 'はぁ…ご主人様、何か用？できるだけ早く済ませてほしいな。' }
+  const [messages, setMessages] = useState<Array<{role: 'user' | 'ellen', content: string, expression?: string}>>([
+    { role: 'ellen', content: 'はぁ…ご主人様、何か用？できるだけ早く済ませてほしいな。', expression: 'lazy' }
   ]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -47,10 +47,10 @@ function App() {
       setMessages(prev => {
         // Remove any empty ellen messages and add the new one
         const filtered = prev.filter(m => !(m.role === 'ellen' && m.content === '...'));
-        return [...filtered, { role: 'ellen', content: currentText }];
+        return [...filtered, { role: 'ellen', content: currentText, expression: currentExpression }];
       });
     }
-  }, [currentText, isSpeaking]);
+  }, [currentText, isSpeaking, currentExpression]);
 
   /**
    * Handle start button click
@@ -112,9 +112,9 @@ function App() {
 
   const getStatusText = () => {
     switch (connectionStatus) {
-      case 'connected': return 'Online';
-      case 'connecting': return 'Connecting...';
-      case 'disconnected': return 'Offline';
+      case 'connected': return 'System Online';
+      case 'connecting': return 'Establishing Link...';
+      case 'disconnected': return 'Link Severed';
       default: return 'Unknown';
     }
   };
@@ -169,7 +169,7 @@ function App() {
 
       {/* Right: Chat Panel */}
       <div className={`chat-panel ${chatOpen ? 'open' : ''}`}>
-        {/* Chat Header */}
+        {/* Chat Header - Victoria Housekeeping Style */}
         <div className="chat-header">
           <div className="chat-avatar">エ</div>
           <div className="chat-info">
@@ -178,6 +178,11 @@ function App() {
               <div className="status-dot-small" style={{ backgroundColor: getStatusColor() }} />
               <span>{getStatusText()}</span>
             </div>
+          </div>
+          {/* S-Rank badge inspired by ZZZ character card */}
+          <div className="rank-badge">
+            <span className="rank-letter">S</span>
+            <span className="rank-text">RANK</span>
           </div>
         </div>
 
@@ -189,6 +194,9 @@ function App() {
                 {msg.role === 'user' ? 'You' : 'エ'}
               </div>
               <div className="message-content">
+                {msg.role === 'ellen' && msg.expression && (
+                  <div className="message-emotion-tag">{msg.expression}</div>
+                )}
                 <div className="message-text">{msg.content}</div>
               </div>
             </div>

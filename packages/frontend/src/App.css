@@ -615,3 +615,49 @@ body {
 @media (max-width: 480px) {
   .chat-panel { max-width: 100%; }
 }
+
+/* ============================================================
+   S-RANK BADGE - ZZZ Character Card Style
+   ============================================================ */
+.rank-badge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 4px 8px;
+  border: 1px solid var(--grey-dark);
+  border-top: 2px solid var(--silver);
+  background: var(--black-deep);
+  flex-shrink: 0;
+}
+
+.rank-letter {
+  font-size: 18px;
+  font-weight: 900;
+  color: var(--silver);
+  line-height: 1;
+  letter-spacing: -0.05em;
+}
+
+.rank-text {
+  font-size: 7px;
+  letter-spacing: 0.2em;
+  color: var(--grey-mid);
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+/* ============================================================
+   EMOTION TAG IN MESSAGE - ZZZ HUD Style
+   ============================================================ */
+.message-emotion-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  margin-bottom: 6px;
+  background: rgba(204, 34, 34, 0.1);
+  border: 1px solid rgba(204, 34, 34, 0.3);
+  color: var(--red-accent);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-weight: 600;
+}
